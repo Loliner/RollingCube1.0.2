@@ -5,21 +5,19 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Rigidbody))]
 public class Player : MonoBehaviour
 {
-    [SerializeField] private float rollDuration = 0.25f;
-    [SerializeField] private float cubeHalfSize = 0.5f;
-    [SerializeField] private LayerMask surfaceMask = ~0;
-    [SerializeField] private bool canClimb = true;
+    [SerializeField] private float rollDuration = 0.25f; // seconds per 90-degree turn
+    [SerializeField] private float cubeHalfSize = 0.5f; // half the cube's unit size
+    [SerializeField] private LayerMask surfaceMask = ~0; // layers treated as ground/walls
+    [SerializeField] private bool canClimb = true; // sticky ability toggle
 
     private Rigidbody rb;
-    private bool isRolling;
-    private bool isFalling;
-    private bool isStuck;
+    private bool isRolling; // true while a roll animation is playing
+    private bool isFalling; // true once gravity has taken over
+    private bool isStuck; // true while pinned mid-climb against a wall
 
-    private int groundLevel;
-    private int stuckLevel;
-    private int stuckBaseLevel;
-    private int stuckWallTop;
-    private Vector3 stuckDirection;
+    private int groundLevel; // level the cube is currently resting at
+    private int stuckLevel; // level reached so far while stuck climbing
+    private Vector3 stuckDirection; // direction of the wall being climbed
 
     void Awake()
     {
@@ -49,7 +47,7 @@ public class Player : MonoBehaviour
         if (isStuck)
         {
             if (direction == stuckDirection)
-                StartCoroutine(ClimbStep(direction));
+                StartCoroutine(ClimbStep(direction, stuckLevel));
             else if (direction == -stuckDirection)
                 StartCoroutine(ClimbDownStep());
             // Perpendicular keys are ignored while stuck to a wall.
@@ -59,106 +57,74 @@ public class Player : MonoBehaviour
         StartCoroutine(TryMove(direction));
     }
 
-    // Decides how to respond to a roll input by comparing the height of
-    // whatever is in the target cell against the cube's current level:
-    // equal height rolls flat, +1 climbs in a single half-turn, +2 or more
-    // starts a multi-step climb (see ClimbStep), -1 descends in a single
-    // half-turn when climbing is allowed, and anything else (a bigger drop,
-    // or no support at all) is an ordinary fall.
+    // Decides the next single roll from what's physically at the target
+    // cell right now: blocked at the same level starts a climb, support one
+    // level down is a flat roll, a climbable surface underfoot allows a
+    // graceful descent, otherwise it's an ordinary fall.
     private IEnumerator TryMove(Vector3 direction)
     {
-        int targetHeight;
-        bool hasSupport = TryGetTargetHeight(direction, out targetHeight);
-        int diff = hasSupport ? targetHeight - groundLevel : int.MinValue;
+        int level = groundLevel;
+        Vector3 targetColumn = SnapToGrid(transform.position + direction);
 
-        if (!hasSupport || diff <= -2 || (diff == -1 && !canClimb))
+        if (IsSolidSlice(targetColumn, level))
         {
-            yield return AnimateRoll(direction, Vector3.down, 90f);
-            FinishAfterRoll();
+            if (!canClimb) yield break;
+            yield return ClimbStep(direction, level);
             yield break;
         }
 
-        if (diff == 0)
-        {
-            yield return AnimateRoll(direction, Vector3.down, 90f);
-            groundLevel = targetHeight;
-            FinishAfterRoll();
-            yield break;
-        }
-
-        if (diff == -1)
+        bool flatLanding = IsSolidSlice(targetColumn, level - 1);
+        if (!flatLanding && canClimb && IsClimbableSlice(SnapToGrid(transform.position), level - 1))
         {
             yield return AnimateRoll(direction, Vector3.down, -180f);
-            groundLevel = targetHeight;
+            groundLevel = level - 1;
             FinishAfterRoll();
             yield break;
         }
 
-        if (!canClimb) yield break;
-
-        if (diff == 1)
-        {
-            yield return AnimateRoll(direction, Vector3.up, -180f);
-            groundLevel = targetHeight;
-            FinishAfterRoll();
-            yield break;
-        }
-
-        stuckBaseLevel = groundLevel;
-        stuckDirection = direction;
-        stuckWallTop = targetHeight;
-        yield return AnimateRoll(direction, Vector3.up, 90f);
-        stuckLevel = groundLevel + 1;
-        isStuck = true;
-        isRolling = false;
+        yield return AnimateRoll(direction, Vector3.down, 90f);
+        FinishAfterRoll();
     }
 
-    // A single quarter-turn can never combine a horizontal step with a
-    // vertical one (there's no grid-aligned edge that produces both at
-    // once), so climbing more than one level up always takes a quarter-turn
-    // per intermediate level (tipping the cube up flush against the wall,
-    // pinned over its starting cell) followed by one final half-turn that
-    // carries it over onto the wall's top.
-    private IEnumerator ClimbStep(Vector3 direction)
+    // Tips the cube up one level if the wall continues above, or finishes
+    // with a half-turn onto the top if it doesn't. Used both to start a
+    // climb from the ground and to continue one already in progress.
+    private IEnumerator ClimbStep(Vector3 direction, int fromLevel)
     {
-        int remaining = stuckWallTop - stuckLevel;
-        if (remaining == 1)
+        Vector3 targetColumn = SnapToGrid(transform.position + direction);
+        bool moreWallAbove = IsSolidSlice(targetColumn, fromLevel + 1);
+
+        if (moreWallAbove)
         {
-            yield return AnimateRoll(direction, Vector3.up, -180f);
-            groundLevel = stuckWallTop;
-            isStuck = false;
+            yield return AnimateRoll(direction, Vector3.up, 90f);
+            stuckDirection = direction;
+            stuckLevel = fromLevel + 1;
+            isStuck = true;
             isRolling = false;
         }
         else
         {
-            yield return AnimateRoll(direction, Vector3.up, 90f);
-            stuckLevel += 1;
-            isRolling = false;
+            yield return AnimateRoll(direction, Vector3.up, -180f);
+            groundLevel = fromLevel + 1;
+            isStuck = false;
+            FinishAfterRoll();
         }
     }
 
-    // Reverses the last climb step around the same edge it pivoted on, one
-    // level at a time; reaching the level the climb started from drops the
-    // cube back to its normal grounded state.
+    // Undoes one climb step; reaching the starting level exits stuck state.
     private IEnumerator ClimbDownStep()
     {
         yield return AnimateRoll(stuckDirection, Vector3.down, -90f);
         stuckLevel -= 1;
-        if (stuckLevel == stuckBaseLevel)
+        if (stuckLevel == groundLevel)
         {
-            groundLevel = stuckBaseLevel;
             isStuck = false;
         }
         isRolling = false;
     }
 
-    // Rotates the cube by an exact angle around the edge offset from its
-    // current position by direction*half (horizontal) and verticalOffset*half
-    // (vertical). A 90-degree down-offset pivot is the ordinary flat roll; a
-    // 90-degree up-offset pivot tips the cube up flush against a taller
-    // obstacle without advancing into it; a 180-degree pivot (up or down
-    // offset) covers a full climb/descend of exactly one level in a single
-    // motion.
+    // Rotates the cube by angle around the edge offset from its current
+    // position by direction*half and verticalOffset*half.
     private IEnumerator AnimateRoll(Vector3 direction, Vector3 verticalOffset, float angle)
     {
         isRolling = true;
@@ -189,6 +155,7 @@ public class Player : MonoBehaviour
         transform.rotation = targetRot;
     }
 
+    // Lands normally if supported, otherwise starts a physics fall.
     private void FinishAfterRoll()
     {
         if (HasSupportBelow())
@@ -197,6 +164,7 @@ public class Player : MonoBehaviour
             StartFalling();
     }
 
+    // Rounds x/y/z to the nearest cell center, avoiding float drift.
     private Vector3 SnapToGrid(Vector3 pos)
     {
         pos.x = Mathf.Round(pos.x - cubeHalfSize) + cubeHalfSize;
@@ -205,37 +173,39 @@ public class Player : MonoBehaviour
         return pos;
     }
 
+    // Converts a grid level to a world Y position.
     private float LevelToY(int level)
     {
         return level * (cubeHalfSize * 2f) + cubeHalfSize;
     }
 
-    // A Climbable reports its own height; anything else solid ahead (bare
-    // ground) counts as height 0. Casting from high above the target cell
-    // straight down finds whichever is there regardless of how high the
-    // cube currently is, and finds nothing at all off the edge of the world.
-    private bool TryGetTargetHeight(Vector3 direction, out int height)
+    // Is there any collider (other than the cube itself) at this column/level?
+    private bool IsSolidSlice(Vector3 columnXZ, int level)
     {
-        Vector3 targetCenter = SnapToGrid(transform.position + direction);
-        Vector3 rayOrigin = new Vector3(targetCenter.x, transform.position.y + 50f, targetCenter.z);
-
-        RaycastHit hit;
-        if (Physics.Raycast(rayOrigin, Vector3.down, out hit, 200f, surfaceMask))
-        {
-            Climbable climbable = hit.collider.GetComponent<Climbable>();
-            height = climbable != null ? climbable.HeightUnits : 0;
-            return true;
-        }
-
-        height = 0;
+        Vector3 center = new Vector3(columnXZ.x, LevelToY(level), columnXZ.z);
+        Collider[] hits = Physics.OverlapBox(center, Vector3.one * (cubeHalfSize * 0.9f), Quaternion.identity, surfaceMask);
+        foreach (Collider hit in hits)
+            if (hit.transform != transform) return true;
         return false;
     }
 
+    // Same as IsSolidSlice, but only true if the collider is a Climbable.
+    private bool IsClimbableSlice(Vector3 columnXZ, int level)
+    {
+        Vector3 center = new Vector3(columnXZ.x, LevelToY(level), columnXZ.z);
+        Collider[] hits = Physics.OverlapBox(center, Vector3.one * (cubeHalfSize * 0.9f), Quaternion.identity, surfaceMask);
+        foreach (Collider hit in hits)
+            if (hit.transform != transform && hit.GetComponent<Climbable>() != null) return true;
+        return false;
+    }
+
+    // Short raycast straight down from the cube's own position.
     private bool HasSupportBelow()
     {
         return Physics.Raycast(transform.position, Vector3.down, cubeHalfSize + 0.05f, surfaceMask);
     }
 
+    // Hands control over to physics.
     private void StartFalling()
     {
         isFalling = true;
