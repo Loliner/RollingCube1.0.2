@@ -1,4 +1,5 @@
 using System.Collections;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -7,17 +8,14 @@ public class Player : MonoBehaviour
 {
     [SerializeField] private float rollDuration = 0.25f; // seconds per 90-degree turn
     [SerializeField] private float cubeHalfSize = 0.5f; // half the cube's unit size
-    [SerializeField] private LayerMask surfaceMask = ~0; // layers treated as ground/walls
-    [SerializeField] private bool canClimb = true; // sticky ability toggle
+    [SerializeField] private LayerMask surfaceMask = ~0; // layers treated as ground/walls/pushables
 
     private Rigidbody rb;
-    private bool isRolling; // true while a roll animation is playing
+    private bool isRolling; // true while a roll or shake animation is playing
     private bool isFalling; // true once gravity has taken over
-    private bool isStuck; // true while pinned mid-climb against a wall
+    private bool isExternallyControlled; // true while a mechanism (e.g. conveyor) owns movement
 
     private int groundLevel; // level the cube is currently resting at
-    private int stuckLevel; // level reached so far while stuck climbing
-    private Vector3 stuckDirection; // direction of the wall being climbed
 
     void Awake()
     {
@@ -30,9 +28,29 @@ public class Player : MonoBehaviour
         groundLevel = 0;
     }
 
+    public bool IsExternallyControlled => isExternallyControlled;
+
+    // Lets an external mechanism (e.g. a conveyor belt) drive this transform
+    // directly; Update() stops polling input until EndExternalControl() is called.
+    public void BeginExternalControl()
+    {
+        isExternallyControlled = true;
+    }
+
+    // Hands control back and re-derives groundLevel/grid alignment from wherever
+    // the mechanism left the cube, so normal rolling resumes correctly.
+    public void EndExternalControl()
+    {
+        isExternallyControlled = false;
+        Vector3 pos = SnapToGrid(transform.position);
+        groundLevel = Mathf.RoundToInt((pos.y - cubeHalfSize) / (cubeHalfSize * 2f));
+        pos.y = LevelToY(groundLevel);
+        transform.position = pos;
+    }
+
     void Update()
     {
-        if (isRolling || isFalling) return;
+        if (isRolling || isFalling || isExternallyControlled) return;
 
         Keyboard kb = Keyboard.current;
         if (kb == null) return;
@@ -44,87 +62,34 @@ public class Player : MonoBehaviour
         else if (kb.dKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame) direction = Vector3.right;
         else return;
 
-        if (isStuck)
-        {
-            if (direction == stuckDirection)
-                StartCoroutine(ClimbStep(direction, stuckLevel));
-            else if (direction == -stuckDirection)
-                StartCoroutine(ClimbDownStep());
-            // Perpendicular keys are ignored while stuck to a wall.
-            return;
-        }
-
         StartCoroutine(TryMove(direction));
     }
 
-    // Decides the next single roll from what's physically at the target
-    // cell right now: blocked at the same level starts a climb, support one
-    // level down is a flat roll, a climbable surface underfoot allows a
-    // graceful descent, otherwise it's an ordinary fall.
+    // Rolls into the target cell if it's clear or holds a pushable block that
+    // can slide out of the way; otherwise shakes in place to signal a blocked move.
     private IEnumerator TryMove(Vector3 direction)
     {
-        int level = groundLevel;
         Vector3 targetColumn = SnapToGrid(transform.position + direction);
+        Collider blocker = GetBlockingCollider(targetColumn, groundLevel);
 
-        if (IsSolidSlice(targetColumn, level))
+        if (blocker != null)
         {
-            if (!canClimb) yield break;
-            yield return ClimbStep(direction, level);
-            yield break;
-        }
-
-        bool flatLanding = IsSolidSlice(targetColumn, level - 1);
-        if (!flatLanding && canClimb && IsClimbableSlice(SnapToGrid(transform.position), level - 1))
-        {
-            yield return AnimateRoll(direction, Vector3.down, -180f);
-            groundLevel = level - 1;
-            FinishAfterRoll();
-            yield break;
+            PushableBlock pushable = blocker.GetComponent<PushableBlock>();
+            if (pushable == null || !pushable.TryBeginPush(direction))
+            {
+                yield return ShakeFeedback();
+                yield break;
+            }
         }
 
         yield return AnimateRoll(direction, Vector3.down, 90f);
         FinishAfterRoll();
     }
 
-    // Tips the cube up one level if the wall continues above, or finishes
-    // with a half-turn onto the top if it doesn't. Used both to start a
-    // climb from the ground and to continue one already in progress.
-    private IEnumerator ClimbStep(Vector3 direction, int fromLevel)
-    {
-        Vector3 targetColumn = SnapToGrid(transform.position + direction);
-        bool moreWallAbove = IsSolidSlice(targetColumn, fromLevel + 1);
-
-        if (moreWallAbove)
-        {
-            yield return AnimateRoll(direction, Vector3.up, 90f);
-            stuckDirection = direction;
-            stuckLevel = fromLevel + 1;
-            isStuck = true;
-            isRolling = false;
-        }
-        else
-        {
-            yield return AnimateRoll(direction, Vector3.up, -180f);
-            groundLevel = fromLevel + 1;
-            isStuck = false;
-            FinishAfterRoll();
-        }
-    }
-
-    // Undoes one climb step; reaching the starting level exits stuck state.
-    private IEnumerator ClimbDownStep()
-    {
-        yield return AnimateRoll(stuckDirection, Vector3.down, -90f);
-        stuckLevel -= 1;
-        if (stuckLevel == groundLevel)
-        {
-            isStuck = false;
-        }
-        isRolling = false;
-    }
-
     // Rotates the cube by angle around the edge offset from its current
-    // position by direction*half and verticalOffset*half.
+    // position by direction*half and verticalOffset*half. The pivot-rotation
+    // math is manual, but the interpolation parameter is driven by DOTween
+    // so the roll gets an eased curve instead of linear stepping.
     private IEnumerator AnimateRoll(Vector3 direction, Vector3 verticalOffset, float angle)
     {
         isRolling = true;
@@ -140,19 +105,42 @@ public class Player : MonoBehaviour
         Quaternion targetRot = fullTurn * startRot;
 
         float duration = rollDuration * Mathf.Abs(angle) / 90f;
-        float elapsed = 0f;
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            Quaternion step = Quaternion.Slerp(Quaternion.identity, fullTurn, t);
-            transform.position = step * (startPos - pivot) + pivot;
-            transform.rotation = step * startRot;
-            yield return null;
-        }
+        float t = 0f;
+        bool done = false;
+        DOTween.To(() => t, x => t = x, 1f, duration)
+            .SetEase(Ease.InOutSine)
+            .OnUpdate(() =>
+            {
+                Quaternion step = Quaternion.Slerp(Quaternion.identity, fullTurn, t);
+                transform.position = step * (startPos - pivot) + pivot;
+                transform.rotation = step * startRot;
+            })
+            .OnComplete(() => done = true);
+
+        yield return new WaitUntil(() => done);
 
         transform.position = targetPos;
         transform.rotation = targetRot;
+    }
+
+    // Brief random jitter to signal a blocked move; blocks input while it plays.
+    private IEnumerator ShakeFeedback(float duration = 0.15f, float magnitude = 0.05f)
+    {
+        isRolling = true;
+        Vector3 origin = transform.position;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            Vector3 offset = Random.insideUnitSphere * magnitude;
+            offset.y = 0f;
+            transform.position = origin + offset;
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        transform.position = origin;
+        isRolling = false;
     }
 
     // Lands normally if supported, otherwise starts a physics fall.
@@ -179,24 +167,14 @@ public class Player : MonoBehaviour
         return level * (cubeHalfSize * 2f) + cubeHalfSize;
     }
 
-    // Is there any collider (other than the cube itself) at this column/level?
-    private bool IsSolidSlice(Vector3 columnXZ, int level)
+    // Returns the collider occupying this column/level, if any (other than the cube itself).
+    private Collider GetBlockingCollider(Vector3 columnXZ, int level)
     {
         Vector3 center = new Vector3(columnXZ.x, LevelToY(level), columnXZ.z);
         Collider[] hits = Physics.OverlapBox(center, Vector3.one * (cubeHalfSize * 0.9f), Quaternion.identity, surfaceMask);
         foreach (Collider hit in hits)
-            if (hit.transform != transform) return true;
-        return false;
-    }
-
-    // Same as IsSolidSlice, but only true if the collider is a Climbable.
-    private bool IsClimbableSlice(Vector3 columnXZ, int level)
-    {
-        Vector3 center = new Vector3(columnXZ.x, LevelToY(level), columnXZ.z);
-        Collider[] hits = Physics.OverlapBox(center, Vector3.one * (cubeHalfSize * 0.9f), Quaternion.identity, surfaceMask);
-        foreach (Collider hit in hits)
-            if (hit.transform != transform && hit.GetComponent<Climbable>() != null) return true;
-        return false;
+            if (hit.transform != transform) return hit;
+        return null;
     }
 
     // Short raycast straight down from the cube's own position.
