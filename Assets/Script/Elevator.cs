@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ public class Elevator : MonoBehaviour
     private Vector3 elevatorStartPos;
     private Vector3 switcherStartPos;
     private bool isTriggered;
+    private readonly List<IExternallyControllable> riders = new List<IExternallyControllable>(); // everything currently standing on the elevator
 
     void Start()
     {
@@ -23,13 +25,21 @@ public class Elevator : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (isTriggered || other.GetComponent<Player>() == null) return;
+        IExternallyControllable rider = other.GetComponent<IExternallyControllable>();
+        if (rider == null) return;
+        if (!riders.Contains(rider)) riders.Add(rider);
+
+        if (isTriggered) return; // already running; new rider just joins for the next leg
         StartCoroutine(StartAnimation());
     }
 
     void OnTriggerExit(Collider other)
     {
-        if (!isTriggered || other.GetComponent<Player>() == null) return;
+        IExternallyControllable rider = other.GetComponent<IExternallyControllable>();
+        if (rider == null) return;
+        riders.Remove(rider);
+
+        if (!isTriggered || riders.Count > 0) return; // wait until everyone's off before resetting
         StartCoroutine(ResetAnimation());
     }
 
@@ -39,6 +49,8 @@ public class Elevator : MonoBehaviour
         elevator.transform.DOMove(elevatorStartPos + offset, moveDuration).SetEase(Ease.InOutSine);
         if (switcherFollow && elevator.transform != transform)
             transform.DOMove(switcherStartPos + offset, moveDuration).SetEase(Ease.InOutSine);
+
+        CarryRiders(offset);
 
         OnStartAnimation();
         yield return null;
@@ -62,4 +74,18 @@ public class Elevator : MonoBehaviour
     }
 
     public virtual void OnResetAnimation() { }
+
+    // Moves every current rider by moveOffset in lockstep with the elevator,
+    // taking control of each one for the duration of the tween.
+    private void CarryRiders(Vector3 moveOffset)
+    {
+        foreach (IExternallyControllable rider in riders)
+        {
+            if (rider.IsExternallyControlled) continue;
+            rider.BeginExternalControl();
+            rider.Transform.DOMove(rider.Transform.position + moveOffset, moveDuration)
+                .SetEase(Ease.InOutSine)
+                .OnComplete(rider.EndExternalControl);
+        }
+    }
 }

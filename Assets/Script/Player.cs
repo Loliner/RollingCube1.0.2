@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(Rigidbody))]
-public class Player : MonoBehaviour
+public class Player : MonoBehaviour, IExternallyControllable
 {
     [SerializeField] private float rollDuration = 0.25f; // seconds per 90-degree turn
     [SerializeField] private float cubeHalfSize = 0.5f; // half the cube's unit size
@@ -23,11 +23,12 @@ public class Player : MonoBehaviour
         rb.isKinematic = true;
 
         Vector3 pos = SnapToGrid(transform.position);
-        pos.y = LevelToY(0);
+        groundLevel = Mathf.RoundToInt(pos.y / (cubeHalfSize * 2f));
+        pos.y = LevelToY(groundLevel);
         transform.position = pos;
-        groundLevel = 0;
     }
 
+    public Transform Transform => transform;
     public bool IsExternallyControlled => isExternallyControlled;
 
     // Lets an external mechanism (e.g. a conveyor belt) drive this transform
@@ -43,7 +44,7 @@ public class Player : MonoBehaviour
     {
         isExternallyControlled = false;
         Vector3 pos = SnapToGrid(transform.position);
-        groundLevel = Mathf.RoundToInt((pos.y - cubeHalfSize) / (cubeHalfSize * 2f));
+        groundLevel = Mathf.RoundToInt(pos.y / (cubeHalfSize * 2f));
         pos.y = LevelToY(groundLevel);
         transform.position = pos;
     }
@@ -152,28 +153,32 @@ public class Player : MonoBehaviour
             StartFalling();
     }
 
-    // Rounds x/y/z to the nearest cell center, avoiding float drift.
+    // Rounds x/y/z to the nearest 0.25, correcting float drift (e.g. 1.4999999
+    // -> 1.5) without collapsing legitimate sub-integer positions.
     private Vector3 SnapToGrid(Vector3 pos)
     {
-        pos.x = Mathf.Round(pos.x - cubeHalfSize) + cubeHalfSize;
-        pos.y = Mathf.Round(pos.y - cubeHalfSize) + cubeHalfSize;
-        pos.z = Mathf.Round(pos.z - cubeHalfSize) + cubeHalfSize;
+        const float snapUnit = 0.25f;
+        pos.x = Mathf.Round(pos.x / snapUnit) * snapUnit;
+        pos.y = Mathf.Round(pos.y / snapUnit) * snapUnit;
+        pos.z = Mathf.Round(pos.z / snapUnit) * snapUnit;
         return pos;
     }
 
     // Converts a grid level to a world Y position.
     private float LevelToY(int level)
     {
-        return level * (cubeHalfSize * 2f) + cubeHalfSize;
+        return level * (cubeHalfSize * 2f);
     }
 
     // Returns the collider occupying this column/level, if any (other than the cube itself).
+    // Trigger colliders (mechanisms like SceneSwitcher, Elevator, ...) are never
+    // physical obstacles — they detect the player via OnTrigger, not blocking.
     private Collider GetBlockingCollider(Vector3 columnXZ, int level)
     {
         Vector3 center = new Vector3(columnXZ.x, LevelToY(level), columnXZ.z);
         Collider[] hits = Physics.OverlapBox(center, Vector3.one * (cubeHalfSize * 0.9f), Quaternion.identity, surfaceMask);
         foreach (Collider hit in hits)
-            if (hit.transform != transform) return hit;
+            if (hit.transform != transform && !hit.isTrigger) return hit;
         return null;
     }
 

@@ -36,10 +36,11 @@ on entirely through the Unity Editor:
 Everything is built on an integer-level grid, not free-floating floats:
 
 - A cube cell is `cubeHalfSize` (default `0.5`) half-extent; world positions are snapped to cell
-  centers via `SnapToGrid()` (round to nearest integer + half-size offset), duplicated in each
-  script that needs it (`Player.cs`, `PushableBlock.cs`).
+  centers via `SnapToGrid()` (round to nearest integer — cell centers sit on whole-number
+  coordinates, matching how level art/terrain is placed), duplicated in each script that needs it
+  (`Player.cs`, `PushableBlock.cs`).
 - Vertical position is addressed by integer `groundLevel`, converted to world Y via
-  `LevelToY(level) = level * cubeHalfSize*2 + cubeHalfSize`.
+  `LevelToY(level) = level * cubeHalfSize*2`.
 - This intentionally replaces 1.0.1's `0.25m` float-snapping model — don't reintroduce float
   snapping when porting old mechanism logic.
 
