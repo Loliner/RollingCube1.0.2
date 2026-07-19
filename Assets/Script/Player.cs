@@ -3,6 +3,14 @@ using DG.Tweening;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+// 基于网格滚动的玩家方块，支持：
+// 1. WASD/方向键控制，每次按键翻滚一格（TryMove/AnimateRoll，DOTween 驱动插值）；
+// 2. 目标格子被挡住时，若是可推的 PushableBlock 则尝试推开，否则原地抖动反馈（ShakeFeedback）；
+// 3. 翻滚后脚下没有支撑就下落，交给物理引擎接管，落地稳定后自动恢复运动学控制并对齐
+//    位置/旋转（StartFalling/LandWhenSettled）；
+// 4. 位置始终按 0.25 单位吸附网格、修正浮点漂移，兼容非整数高度的地形（SnapToGrid）；
+// 5. 可被外部机关（Elevator、ConveyorLogic 等）通过 IExternallyControllable 接口
+//    临时接管移动（BeginExternalControl/EndExternalControl）。
 [RequireComponent(typeof(Rigidbody))]
 public class Player : MonoBehaviour, IExternallyControllable
 {
@@ -15,17 +23,12 @@ public class Player : MonoBehaviour, IExternallyControllable
     private bool isFalling; // true once gravity has taken over
     private bool isExternallyControlled; // true while a mechanism (e.g. conveyor) owns movement
 
-    private int groundLevel; // level the cube is currently resting at
-
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
         rb.isKinematic = true;
 
-        Vector3 pos = SnapToGrid(transform.position);
-        groundLevel = Mathf.RoundToInt(pos.y / (cubeHalfSize * 2f));
-        pos.y = LevelToY(groundLevel);
-        transform.position = pos;
+        transform.position = SnapToGrid(transform.position);
     }
 
     public Transform Transform => transform;
@@ -38,15 +41,12 @@ public class Player : MonoBehaviour, IExternallyControllable
         isExternallyControlled = true;
     }
 
-    // Hands control back and re-derives groundLevel/grid alignment from wherever
-    // the mechanism left the cube, so normal rolling resumes correctly.
+    // Hands control back and re-derives grid alignment from wherever the
+    // mechanism left the cube, so normal rolling resumes correctly.
     public void EndExternalControl()
     {
         isExternallyControlled = false;
-        Vector3 pos = SnapToGrid(transform.position);
-        groundLevel = Mathf.RoundToInt(pos.y / (cubeHalfSize * 2f));
-        pos.y = LevelToY(groundLevel);
-        transform.position = pos;
+        transform.position = SnapToGrid(transform.position);
     }
 
     void Update()
@@ -71,7 +71,7 @@ public class Player : MonoBehaviour, IExternallyControllable
     private IEnumerator TryMove(Vector3 direction)
     {
         Vector3 targetColumn = SnapToGrid(transform.position + direction);
-        Collider blocker = GetBlockingCollider(targetColumn, groundLevel);
+        Collider blocker = GetBlockingCollider(targetColumn, transform.position.y);
 
         if (blocker != null)
         {
@@ -144,12 +144,12 @@ public class Player : MonoBehaviour, IExternallyControllable
         isRolling = false;
     }
 
-    // Lands normally if supported, otherwise starts a physics fall.
+    // Lands normally if supported, otherwise starts a physics fall. Either way
+    // the roll itself is over, so isRolling always clears here.
     private void FinishAfterRoll()
     {
-        if (HasSupportBelow())
-            isRolling = false;
-        else
+        isRolling = false;
+        if (!TryGetSupportBelow(out _))
             StartFalling();
     }
 
@@ -164,34 +164,67 @@ public class Player : MonoBehaviour, IExternallyControllable
         return pos;
     }
 
-    // Converts a grid level to a world Y position.
-    private float LevelToY(int level)
+    // Returns the collider occupying this column at this height, if any (other
+    // than the cube itself). Trigger colliders (mechanisms like SceneSwitcher,
+    // Elevator, ...) are never physical obstacles — they detect the player via
+    // OnTrigger, not blocking.
+    private Collider GetBlockingCollider(Vector3 columnXZ, float y)
     {
-        return level * (cubeHalfSize * 2f);
-    }
-
-    // Returns the collider occupying this column/level, if any (other than the cube itself).
-    // Trigger colliders (mechanisms like SceneSwitcher, Elevator, ...) are never
-    // physical obstacles — they detect the player via OnTrigger, not blocking.
-    private Collider GetBlockingCollider(Vector3 columnXZ, int level)
-    {
-        Vector3 center = new Vector3(columnXZ.x, LevelToY(level), columnXZ.z);
+        Vector3 center = new Vector3(columnXZ.x, y, columnXZ.z);
         Collider[] hits = Physics.OverlapBox(center, Vector3.one * (cubeHalfSize * 0.9f), Quaternion.identity, surfaceMask);
         foreach (Collider hit in hits)
             if (hit.transform != transform && !hit.isTrigger) return hit;
         return null;
     }
 
-    // Short raycast straight down from the cube's own position.
-    private bool HasSupportBelow()
+    // Short raycast straight down from the cube's own position. Ignores triggers
+    // (mechanisms like SceneSwitcher) so a thin trigger plate resting on top of
+    // real ground is never mistaken for the support surface itself.
+    private bool TryGetSupportBelow(out RaycastHit hit)
     {
-        return Physics.Raycast(transform.position, Vector3.down, cubeHalfSize + 0.05f, surfaceMask);
+        return Physics.Raycast(transform.position, Vector3.down, out hit, cubeHalfSize + 0.05f, surfaceMask, QueryTriggerInteraction.Ignore);
     }
 
-    // Hands control over to physics.
+    // Hands control over to physics; LandWhenSettled() hands it back once the
+    // fall ends, since there's no scripted fall/landing animation.
     private void StartFalling()
     {
         isFalling = true;
         rb.isKinematic = false;
+        StartCoroutine(LandWhenSettled());
+    }
+
+    // Waits until physics has come to rest on solid ground, then restores
+    // kinematic control and re-aligns position/rotation to the grid. Y is
+    // taken from the support raycast's hit point rather than the raw resting
+    // position — physics rest can leave a little penetration/offset, and the
+    // level's terrain isn't necessarily on whole-unit heights (steps can sit
+    // at any 0.25 multiple), so snapping the noisy raw Y can land the cube in
+    // the wrong place entirely (visibly clipping into geometry).
+    private IEnumerator LandWhenSettled()
+    {
+        RaycastHit hit = default;
+        yield return new WaitUntil(() => rb.linearVelocity.sqrMagnitude < 0.01f && TryGetSupportBelow(out hit));
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+
+        Vector3 pos = transform.position;
+        pos.y = hit.point.y + cubeHalfSize;
+        transform.position = SnapToGrid(pos);
+        transform.rotation = SnapRotation(transform.rotation);
+
+        isFalling = false;
+    }
+
+    // Snaps rotation to the nearest 90-degree increment on each axis.
+    private Quaternion SnapRotation(Quaternion rot)
+    {
+        Vector3 euler = rot.eulerAngles;
+        euler.x = Mathf.Round(euler.x / 90f) * 90f;
+        euler.y = Mathf.Round(euler.y / 90f) * 90f;
+        euler.z = Mathf.Round(euler.z / 90f) * 90f;
+        return Quaternion.Euler(euler);
     }
 }

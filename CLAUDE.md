@@ -33,16 +33,24 @@ on entirely through the Unity Editor:
 
 ### Grid model
 
-Everything is built on an integer-level grid, not free-floating floats:
+Everything is built on a grid, not free-floating floats:
 
-- A cube cell is `cubeHalfSize` (default `0.5`) half-extent; world positions are snapped to cell
-  centers via `SnapToGrid()` (round to nearest integer — cell centers sit on whole-number
-  coordinates, matching how level art/terrain is placed), duplicated in each script that needs it
-  (`Player.cs`, `PushableBlock.cs`).
-- Vertical position is addressed by integer `groundLevel`, converted to world Y via
-  `LevelToY(level) = level * cubeHalfSize*2`.
-- This intentionally replaces 1.0.1's `0.25m` float-snapping model — don't reintroduce float
-  snapping when porting old mechanism logic.
+- A cube cell is `cubeHalfSize` (default `0.5`) half-extent; world positions are corrected to the
+  grid via `SnapToGrid()` (round x/y/z to the nearest `0.25`, correcting float drift like
+  `1.4999999 -> 1.5` without collapsing legitimate sub-integer positions), duplicated in each
+  script that needs it (`Player.cs`, `PushableBlock.cs`).
+- There is no integer floor/level concept — height is just the `y` component of `transform.position`,
+  snapped the same way as x/z. Terrain steps are not required to be a full cube-height apart; level
+  art can (and does — see `Chapter1_Scene2`) place steps at any `0.25` multiple, e.g. half-height
+  (`0.5`) stairs. `Player.cs` used to track a separate integer `groundLevel`/`LevelToY()`, but that
+  assumed whole-cube-height steps and silently corrupted landings on any terrain not on that grid
+  (visible as the cube clipping into geometry) — it was removed in favor of reading
+  `transform.position.y` directly everywhere (blocking checks, fall landings).
+- When `Player.cs` falls (`StartFalling()`/`LandWhenSettled()`), the landing Y is taken from the
+  downward support raycast's hit point (`hit.point.y + cubeHalfSize`), not from wherever physics
+  inertia happened to leave the Rigidbody — physics rest can have small penetration/offset, and
+  snapping that noisy raw value only makes sense once it's anchored to the actual surface it
+  landed on.
 
 ### Player movement (`Assets/Script/Player.cs`)
 
@@ -55,12 +63,15 @@ Everything is built on an integer-level grid, not free-floating floats:
 - Blocked moves (wall or unpushable block ahead) play `ShakeFeedback()` instead of moving.
 - After a successful roll, `FinishAfterRoll()` checks `HasSupportBelow()` (short downward raycast);
   if unsupported it calls `StartFalling()`, which flips the `Rigidbody` to non-kinematic and lets
-  physics take over — there's no scripted fall animation.
+  physics take over — there's no scripted fall animation. `LandWhenSettled()` polls until the
+  Rigidbody's velocity settles and a support raycast hits, then hands control back: re-kinematic-izes
+  the `Rigidbody`, snaps position to the surface it landed on (see Grid model above), and snaps
+  rotation to the nearest 90° so a tumble during the fall doesn't leave the cube off-axis.
 - `BeginExternalControl()` / `EndExternalControl()` / `IsExternallyControlled` let a mechanism (e.g.
   `ConveyorLogic`) take direct ownership of the transform while suspending input polling.
-  `EndExternalControl()` re-derives `groundLevel` from wherever the mechanism left the cube, so
-  normal rolling resumes cleanly — always call it when handing control back, don't just stop moving
-  the transform.
+  `EndExternalControl()` re-snaps to the grid from wherever the mechanism left the cube, so normal
+  rolling resumes cleanly — always call it when handing control back, don't just stop moving the
+  transform.
 - **Climbing is currently disabled.** The previous climb-capable implementation (`isStuck`,
   `ClimbStep`, `ClimbDownStep`, etc.) is archived at
   `Assets/Script/_Archive/Player.WithClimb.cs.txt` for reference, not compiled. `Climbable.cs`
