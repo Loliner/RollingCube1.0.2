@@ -3,6 +3,12 @@ using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
 
+// 可移动到任意位置的电梯开关，支持：
+// 1. 触发后移动到固定位置（elevatorStartPos + offset）；
+// 2. 携带站在它上面的物体（玩家或木箱）一起移动（riders）；
+// 3. 物体离开后可回到最初位置，也可以不回（reset 开关控制，配合 resetDelay）；
+// 4. 既支持通过自身 trigger 触发移动（selfTriggered=true），也支持由外部单独的
+//    触发器调用 TriggerMove() 触发移动（见 ElevatorSwitch）。
 public class Elevator : MonoBehaviour
 {
     [SerializeField] private GameObject elevator;
@@ -11,6 +17,7 @@ public class Elevator : MonoBehaviour
     [SerializeField] private float resetDelay = 3f;
     [SerializeField] private bool switcherFollow;
     [SerializeField] protected float moveDuration = 2f;
+    [SerializeField] private bool selfTriggered = true; // whether stepping onto the elevator's own trigger starts movement
 
     private Vector3 elevatorStartPos;
     private Vector3 switcherStartPos;
@@ -29,7 +36,15 @@ public class Elevator : MonoBehaviour
         if (rider == null) return;
         if (!riders.Contains(rider)) riders.Add(rider);
 
-        if (isTriggered) return; // already running; new rider just joins for the next leg
+        if (selfTriggered) TriggerMove();
+    }
+
+    // Starts the elevator's move-to-offset animation. Called from the elevator's
+    // own trigger (if selfTriggered) or externally (e.g. a separate switch/button
+    // mechanism holding a reference to this elevator). No-ops if already moving.
+    public void TriggerMove()
+    {
+        if (isTriggered) return;
         StartCoroutine(StartAnimation());
     }
 

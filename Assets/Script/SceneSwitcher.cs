@@ -46,7 +46,11 @@ public class SceneSwitcher : MonoBehaviour
         else if (Application.CanStreamedLevelBeLoaded(nextChapterFirst))
             target = nextChapterFirst;
         else
-            return; // TODO: last level of the game — should return to a chapter-select screen once one exists
+        {
+            // TODO: last level of the game — should return to a chapter-select screen once one exists
+            Debug.LogWarning($"SceneSwitcher: neither '{nextInChapter}' nor '{nextChapterFirst}' is registered in Build Settings (tried from '{currentSceneName}').");
+            return;
+        }
 
         SceneManager.LoadScene(target);
     }
