@@ -111,3 +111,48 @@ phase progress (core movement, mechanisms, prefabs/art, level building, docs) an
 architectural decisions (grid model, trigger detection, DOTween usage, climb deferral) with the
 reasoning behind each. Re-read it before making changes that touch player movement, mechanism
 triggers, or the grid model, since it may be more current than this file.
+
+---
+
+# Claude Code Game Studios — Agent Architecture
+
+49 coordinated Claude Code subagents for structured game development.
+Each agent owns a specific domain, enforcing separation of concerns and quality.
+
+## Technology Stack
+
+- **Engine**: Unity 6000.5.3f1 (URP 17.5.0)
+- **Language**: C#
+- **Version Control**: Git with trunk-based development
+- **Input**: Unity Input System (`Unity.InputSystem`)
+- **Tweening**: DOTween
+
+## Project Structure
+
+@.claude/docs/directory-structure.md
+
+## Technical Preferences
+
+@.claude/docs/technical-preferences.md
+
+## Coordination Rules
+
+@.claude/docs/coordination-rules.md
+
+## Collaboration Protocol
+
+**User-driven collaboration, not autonomous execution.**
+Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
+
+- Agents MUST ask "May I write this to [filepath]?" before using Write/Edit tools
+- Agents MUST show drafts or summaries before requesting approval
+- Multi-file changes require explicit approval for the full changeset
+- No commits without user instruction
+
+## Coding Standards
+
+@.claude/docs/coding-standards.md
+
+## Context Management
+
+@.claude/docs/context-management.md
