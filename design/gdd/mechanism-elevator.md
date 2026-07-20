@@ -36,7 +36,9 @@
 ### 3.4 复位（Reset）
 
 - `reset = false`（默认）：移动到目标后永久停留，不复位。
-- `reset = true`：当所有 rider 离开触发器后，等待 `resetDelay` 秒，再返回初始位置；复位完成后 `isTriggered` 重置为 `false`，允许再次触发。
+- `reset = true`：触发复位倒计时，倒计时结束后返回初始位置；复位完成后 `isTriggered` 重置为 `false`，允许再次触发。倒计时何时开始由 `resetOnArrival` 决定：
+  - `resetOnArrival = false`（默认）：等所有 rider 离开触发器后，才开始等待 `resetDelay` 秒。
+  - `resetOnArrival = true`：一到达目标位置就立刻开始等待 `resetDelay` 秒，不管上面是否还站着人；复位时会把仍在平台上的 rider 一并带回起点（`CarryRiders(-offset)`）。适合"限时窗口"类设计——玩家如果没能在平台缩回前完成后续操作，会被平台原样带回起点重新尝试，而不是被晾在半路。
 
 ### 3.5 联动升降台（LinkedElevator）
 
@@ -92,8 +94,9 @@
 |------|------|--------|------|
 | `offset` | Vector3 | (0,0,0) | 相对初始位置的目标偏移量 |
 | `moveDuration` | float | 2f | 升降动画时长（秒） |
-| `reset` | bool | false | 是否在玩家离开后复位 |
+| `reset` | bool | false | 是否复位 |
 | `resetDelay` | float | 3f | 复位前等待时间（秒） |
+| `resetOnArrival` | bool | false | 复位倒计时的起点：false=等所有人离开触发器；true=一到达目标位置就开始倒计时，到点后连人一起带回起点 |
 | `selfTriggered` | bool | true | 是否自触发 |
 | `switcherFollow` | bool | false | 触发器碰撞体是否跟随移动 |
 | `holdDuration`（Switch） | float | 1f | 开关需持续踩住的时长（秒） |
@@ -107,7 +110,8 @@
 - [ ] 玩家被升降台携带，在移动期间无法自主移动
 - [ ] 木箱也能被升降台携带
 - [ ] 移动中再次触发不会重叠启动第二次移动
-- [ ] `reset = true` 时，玩家离开后延迟复位，再次踩上可重新触发
+- [ ] `reset = true` 且 `resetOnArrival = false` 时，玩家离开后延迟复位，再次踩上可重新触发
+- [ ] `reset = true` 且 `resetOnArrival = true` 时，到达目标后即使玩家仍站在平台上，也会在 `resetDelay` 秒后自动缩回并把玩家带回起点
 - [ ] `reset = false` 时，升降台停留在目标位置不复位
 - [ ] `ElevatorSwitch` 需持续踩住 `holdDuration` 秒才触发，提前离开取消
 - [ ] `LinkedElevator` 触发时联动第二个物体同步移动

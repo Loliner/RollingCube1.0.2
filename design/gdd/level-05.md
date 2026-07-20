@@ -1,7 +1,7 @@
 # GDD — 第五关：升降平台 + 移动平台
 
 **所属章节**：第一章
-**核心机制**：升降台、ElevatorSwitch、驮载
+**核心机制**：升降台（顺序依赖）、自触发移动平台、`resetOnArrival` 限时回缩、驮载
 **场景文件**：`Assets/Scenes/Chapter1/Chapter1_Scene5.unity`（待建）
 
 ---

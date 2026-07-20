@@ -1,7 +1,7 @@
-# GDD — 第九关：综合谜题
+# GDD — 第九关：箱子 + 隐藏按钮
 
 **所属章节**：第一章
-**核心机制**：推箱子（PushableBlock）、升降台、ElevatorSwitch、驮载、下落
+**核心机制**：推箱子（PushableBlock）、升降台（隐藏按钮触发）、下落
 **场景文件**：`Assets/Scenes/Chapter1/Chapter1_Scene9.unity`（待建）
 
 ---

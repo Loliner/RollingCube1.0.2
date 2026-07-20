@@ -7,6 +7,9 @@ using UnityEngine;
 // 1. 触发后移动到固定位置（elevatorStartPos + offset）；
 // 2. 携带站在它上面的物体（玩家或木箱）一起移动（riders）；
 // 3. 物体离开后可回到最初位置，也可以不回（reset 开关控制，配合 resetDelay）；
+//    复位的计时方式可选：等所有人离开触发器后才开始计时（默认），或者一到达
+//    目标位置就立刻开始计时，不管上面是否还站着人（resetOnArrival），后者会把
+//    还在平台上的物体一并带回起点。
 // 4. 既支持通过自身 trigger 触发移动（selfTriggered=true），也支持由外部单独的
 //    触发器调用 TriggerMove() 触发移动（见 ElevatorSwitch）。
 public class Elevator : MonoBehaviour
@@ -15,6 +18,7 @@ public class Elevator : MonoBehaviour
     [SerializeField] private Vector3 offset;
     [SerializeField] private bool reset;
     [SerializeField] private float resetDelay = 3f;
+    [SerializeField] private bool resetOnArrival; // false: reset timer starts once all riders leave the trigger (default). true: reset timer starts immediately on arrival, regardless of riders, and carries back whoever is still on board.
     [SerializeField] private bool switcherFollow;
     [SerializeField] protected float moveDuration = 2f;
     [SerializeField] private bool selfTriggered = true; // whether stepping onto the elevator's own trigger starts movement
@@ -54,6 +58,7 @@ public class Elevator : MonoBehaviour
         if (rider == null) return;
         riders.Remove(rider);
 
+        if (resetOnArrival) return; // reset timing is driven by arrival, not by riders leaving
         if (!isTriggered || riders.Count > 0) return; // wait until everyone's off before resetting
         StartCoroutine(ResetAnimation());
     }
@@ -68,7 +73,12 @@ public class Elevator : MonoBehaviour
         CarryRiders(offset);
 
         OnStartAnimation();
-        yield return null;
+
+        if (resetOnArrival)
+        {
+            yield return new WaitForSeconds(moveDuration);
+            StartCoroutine(ResetAnimation());
+        }
     }
 
     public virtual void OnStartAnimation() { }
@@ -84,6 +94,8 @@ public class Elevator : MonoBehaviour
             .OnComplete(() => isTriggered = false);
         if (switcherFollow && elevator.transform != transform)
             transform.DOMove(switcherStartPos, moveDuration).SetEase(Ease.InOutSine);
+
+        CarryRiders(-offset); // no-op if everyone already left (exit-triggered reset); brings back anyone still riding (arrival-triggered reset)
 
         OnResetAnimation();
     }
