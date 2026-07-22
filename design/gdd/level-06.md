@@ -1,8 +1,8 @@
-# GDD — 第六关：推箱子（开路）
+# GDD — 第六关：推箱子（丘陵地形，两次开路）
 
 **所属章节**：第一章
-**核心机制**：推箱子（PushableBlock）
-**场景文件**：`Assets/Scenes/Chapter1/Chapter1_Scene6.unity`（待建）
+**核心机制**：推箱子（PushableBlock）、地形起伏挡路（垫高地块，无新增脚本）
+**场景文件**：`Assets/Scenes/Chapter1/Chapter1_Scene6.unity`
 
 ---
 
