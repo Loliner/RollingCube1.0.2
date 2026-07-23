@@ -48,7 +48,7 @@
 
 ### 3.6 占位检测（IsOccupied）
 
-使用 `Physics.OverlapBox` 在目标格中心做 0.9× 缩小的盒形检测（避免贴边误判），任何非自身碰撞体均视为占用。检测范围受 `surfaceMask` 图层过滤。
+使用 `Physics.OverlapBox` 在目标格中心做 0.9× 缩小的盒形检测（避免贴边误判），任何非自身的**非 trigger** 碰撞体视为占用；trigger 碰撞体（`ElevatorSwitch`、`Elevator`、`SceneSwitcher` 等机关）不算物理阻挡，木箱可以被推入其触发区域——第八关"箱子压住开关"就依赖这一点：开关本身是 trigger，木箱必须能被推进去才能压住它。检测范围受 `surfaceMask` 图层过滤，与 `Player.GetBlockingCollider` 排除 trigger 的规则保持一致。
 
 ---
 
@@ -77,6 +77,7 @@ SnapToGrid：x/y/z 各自四舍五入到最近的 0.25 倍数
 | 木箱下落后停在非网格高度 | 物理引擎负责，当前不做额外吸附（下落后木箱不再是运动学） |
 | 升降台携带木箱到空中时升降台复位 | `EndExternalControl()` 后检查支撑；无支撑则下落 |
 | 玩家站在木箱上时推另一个木箱 | 不在当前设计范围内（玩家无法站在木箱上，木箱顶面无 trigger） |
+| 木箱前方是机关的 trigger 区域（`ElevatorSwitch`、`Elevator` 踏板等） | `IsOccupied` 忽略 trigger 碰撞体，推动正常成功；箱子进入后由该机关自己的 `OnTriggerEnter` 逻辑决定后续行为（如压力板记为占用体） |
 
 ---
 

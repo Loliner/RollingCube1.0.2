@@ -58,12 +58,16 @@ public class PushableBlock : MonoBehaviour, IExternallyControllable
         return true;
     }
 
-    // Any collider (other than this block) occupying the same cell as position?
+    // Any non-trigger collider (other than this block) occupying the same cell
+    // as position? Trigger colliders (mechanisms like ElevatorSwitch, Elevator,
+    // SceneSwitcher, ...) are never physical obstacles — they detect the block
+    // via OnTrigger, not blocking, so a block must be pushable onto them (e.g.
+    // pushing a block onto a pressure-plate switch to hold it down).
     private bool IsOccupied(Vector3 position)
     {
         Collider[] hits = Physics.OverlapBox(position, Vector3.one * (cubeHalfSize * 0.9f), Quaternion.identity, surfaceMask);
         foreach (Collider hit in hits)
-            if (hit.transform != transform) return true;
+            if (hit.transform != transform && !hit.isTrigger) return true;
         return false;
     }
 
