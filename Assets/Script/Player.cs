@@ -17,11 +17,14 @@ public class Player : MonoBehaviour, IExternallyControllable
     [SerializeField] private float rollDuration = 0.25f; // seconds per 90-degree turn
     [SerializeField] private float cubeHalfSize = 0.5f; // half the cube's unit size
     [SerializeField] private LayerMask surfaceMask = ~0; // layers treated as ground/walls/pushables
+    [SerializeField] private float killPlaneY = -5f; // falling below this Y respawns instead of waiting to land; tune per scene, a few units below its lowest terrain
 
     private Rigidbody rb;
     private bool isRolling; // true while a roll or shake animation is playing
     private bool isFalling; // true once gravity has taken over
     private bool isExternallyControlled; // true while a mechanism (e.g. conveyor) owns movement
+    private Vector3 spawnPosition;
+    private Quaternion spawnRotation;
 
     void Awake()
     {
@@ -29,6 +32,8 @@ public class Player : MonoBehaviour, IExternallyControllable
         rb.isKinematic = true;
 
         transform.position = SnapToGrid(transform.position);
+        spawnPosition = transform.position;
+        spawnRotation = transform.rotation;
     }
 
     public Transform Transform => transform;
@@ -201,10 +206,23 @@ public class Player : MonoBehaviour, IExternallyControllable
     // level's terrain isn't necessarily on whole-unit heights (steps can sit
     // at any 0.25 multiple), so snapping the noisy raw Y can land the cube in
     // the wrong place entirely (visibly clipping into geometry).
+    // Falling past killPlaneY (e.g. off a level's outer edge, with no ground
+    // below at all) never satisfies the landing condition, so it's checked
+    // first every frame and respawns instead of waiting forever.
     private IEnumerator LandWhenSettled()
     {
         RaycastHit hit = default;
-        yield return new WaitUntil(() => rb.linearVelocity.sqrMagnitude < 0.01f && TryGetSupportBelow(out hit));
+        while (true)
+        {
+            if (transform.position.y < killPlaneY)
+            {
+                Respawn();
+                yield break;
+            }
+            if (rb.linearVelocity.sqrMagnitude < 0.01f && TryGetSupportBelow(out hit))
+                break;
+            yield return null;
+        }
 
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
@@ -214,6 +232,21 @@ public class Player : MonoBehaviour, IExternallyControllable
         pos.y = hit.point.y + cubeHalfSize;
         transform.position = SnapToGrid(pos);
         transform.rotation = SnapRotation(transform.rotation);
+
+        isFalling = false;
+    }
+
+    // Teleports back to the spawn position recorded in Awake(), instantly and
+    // without a landing animation (the cube fell off-screen, so there's
+    // nothing to see mid-fall anyway).
+    private void Respawn()
+    {
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+
+        transform.position = spawnPosition;
+        transform.rotation = spawnRotation;
 
         isFalling = false;
     }
