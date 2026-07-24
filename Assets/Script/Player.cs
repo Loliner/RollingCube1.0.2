@@ -18,6 +18,7 @@ public class Player : MonoBehaviour, IExternallyControllable
     [SerializeField] private float cubeHalfSize = 0.5f; // half the cube's unit size
     [SerializeField] private LayerMask surfaceMask = ~0; // layers treated as ground/walls/pushables
     [SerializeField] private float killPlaneY = -5f; // falling below this Y respawns instead of waiting to land; tune per scene, a few units below its lowest terrain
+    [SerializeField] private float respawnScaleDuration = 0.3f; // scale-out/scale-in duration on respawn
 
     private Rigidbody rb;
     private bool isRolling; // true while a roll or shake animation is playing
@@ -236,19 +237,27 @@ public class Player : MonoBehaviour, IExternallyControllable
         isFalling = false;
     }
 
-    // Teleports back to the spawn position recorded in Awake(), instantly and
-    // without a landing animation (the cube fell off-screen, so there's
-    // nothing to see mid-fall anyway).
+    // Teleports back to the spawn position recorded in Awake(), scaling out
+    // before the move and back in after, rather than an abrupt cut — reads as
+    // "vanish, then reappear" instead of a jarring pop. isFalling stays true
+    // (input suspended) until the scale-in completes.
     private void Respawn()
     {
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         rb.isKinematic = true;
 
-        transform.position = spawnPosition;
-        transform.rotation = spawnRotation;
+        transform.DOScale(Vector3.zero, respawnScaleDuration)
+            .SetEase(Ease.InSine)
+            .OnComplete(() =>
+            {
+                transform.position = spawnPosition;
+                transform.rotation = spawnRotation;
 
-        isFalling = false;
+                transform.DOScale(Vector3.one, respawnScaleDuration)
+                    .SetEase(Ease.OutSine)
+                    .OnComplete(() => isFalling = false);
+            });
     }
 
     // Snaps rotation to the nearest 90-degree increment on each axis.
