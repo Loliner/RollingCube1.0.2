@@ -51,7 +51,7 @@ isPaused == false → Time.timeScale = 1，面板 SetActive(false)，Player.Upda
 | Esc 按下时玩家方块正处于翻滚/下落动画中 | `AnimateRoll`/`LandWhenSettled` 里的 DOTween 动画默认受 `Time.timeScale` 影响，`timeScale = 0` 会让动画自然定格在当前插值位置；恢复后从冻结点继续播放，不需要额外处理 |
 | 暂停期间 `Player.Update()` 仍每帧运行 | `Update()` 不受 `timeScale` 影响，因此显式加 `isPaused` 判断阻止处理新的方向键输入，避免暂停期间排队新的翻滚 |
 | "重置"/"回到主界面"点击时 `Time.timeScale` 仍是 0 | 必须在调用 `SceneManager.LoadScene` 之前显式把 `timeScale` 恢复为 1，否则新场景加载后依然停留在冻结状态 |
-| 在 `MainMenu.unity` 占位场景按 Esc | `PauseMenu` 是全局单例，占位场景里同样会弹出面板（"回到主界面"/"重置"作用于 MainMenu 自身）；当前阶段视为占位场景的已知行为，不做屏蔽，等正式开始界面设计时再决定是否需要禁用 |
+| 在 `MainMenu.unity` 按 Esc | 已由 [[ui-start-screen]] 定案并实现：`PauseMenu.cs` 检测到当前场景名等于自己的 `MainMenuSceneName` 常量时跳过暂停开关逻辑（不弹面板、不冻结时间），Esc 完全交给 `MainMenu.cs` 处理章节/关卡选择面板的返回导航 |
 | 玩家被机关（Elevator/Conveyor）携带或 `ShakeFeedback` 抖动动画播放时按下 Esc | 这些协程同样依赖 `Time.deltaTime`/DOTween，`timeScale = 0` 会让它们自然定格，恢复后继续播放，不需要额外处理 |
 | 快速连续按 Esc（例如双击） | 每次按下都是一次开关切换，不做防抖/去重；`SetActive` 状态天然幂等，不会出现异常状态 |
 
@@ -63,7 +63,7 @@ isPaused == false → Time.timeScale = 1，面板 SetActive(false)，Player.Upda
 - **StepCounter.cs** — "重置"/"回到主界面"都会触发 `SceneManager.LoadScene`，其现有的 `OnSceneLoaded` 钩子会自然清零 Step/Dead 计数，本机制不需要重复处理
 - **SceneSwitcher.cs** — 场景命名规则（`Chapter{n}_Scene{m}`）用于"重置"时取得当前场景名并重新加载
 - **Assets/Scenes/MainMenu.unity**（本机制新建的占位场景） — "回到主界面"当前唯一的跳转目标
-- **design/gdd/（待建的"开始游戏界面" GDD）** — 会在 `MainMenu.unity` 基础上补充实际内容，那份文档需要回链本文档，说明它复用的是本机制新建的占位场景而非从零新建
+- **[[ui-start-screen]]** — 在 `MainMenu.unity` 基础上补充章节/关卡选择面板，并为本机制新增"当前场景是 MainMenu 时跳过 Esc 处理"的判断，把 Esc 让给它自己的返回导航
 
 ---
 

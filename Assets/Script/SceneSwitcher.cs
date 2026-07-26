@@ -35,6 +35,8 @@ public class SceneSwitcher : MonoBehaviour
         int chapter = int.Parse(match.Groups[1].Value);
         int scene = int.Parse(match.Groups[2].Value);
 
+        LevelProgress.Instance.RegisterCompletion(chapter, scene);
+
         // Next scene in the same chapter if it's registered in Build Settings,
         // otherwise roll over to the first scene of the next chapter.
         string nextInChapter = $"Chapter{chapter}_Scene{scene + 1}";

@@ -29,6 +29,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Chapter1/Chapter1_Scene7.unity
     guid: 961314f7c0b65324c99a8ee4e6d0c17a
+  - enabled: 1
+    path: Assets/Scenes/Chapter1/Chapter1_Scene8.unity
+    guid: 9854713c61c8830439675eb047118f73
+  - enabled: 1
+    path: Assets/Scenes/Chapter1/Chapter1_Scene9.unity
+    guid: 396d629c93040924cb44074de8cff190
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

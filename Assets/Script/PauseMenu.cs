@@ -46,6 +46,10 @@ public class PauseMenu : MonoBehaviour
         Keyboard kb = Keyboard.current;
         if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
 
+        // The start screen (see MainMenu.cs) owns Esc for its own back
+        // navigation; don't compete with it for the same keypress.
+        if (SceneManager.GetActiveScene().name == MainMenuSceneName) return;
+
         if (IsPaused) Resume();
         else Pause();
     }
