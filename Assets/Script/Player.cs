@@ -90,6 +90,7 @@ public class Player : MonoBehaviour, IExternallyControllable
         }
 
         yield return AnimateRoll(direction, Vector3.down, 90f);
+        StepCounter.Instance.RegisterStep();
         FinishAfterRoll();
     }
 
