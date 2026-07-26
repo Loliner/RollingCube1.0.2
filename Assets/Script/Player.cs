@@ -57,7 +57,7 @@ public class Player : MonoBehaviour, IExternallyControllable
 
     void Update()
     {
-        if (isRolling || isFalling || isExternallyControlled) return;
+        if (isRolling || isFalling || isExternallyControlled || PauseMenu.Instance.IsPaused) return;
 
         Keyboard kb = Keyboard.current;
         if (kb == null) return;

@@ -75,3 +75,4 @@ crashlytics-build.properties
 # Session logs (ephemeral, not for version control)
 production/session-logs/agent-audit.log
 production/session-logs/session-log.md
+production/session-logs/compaction-log.txt
