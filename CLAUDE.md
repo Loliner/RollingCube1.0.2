@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 RollingCube is a Unity puzzle game (URP) where the player rolls a cube around a level built on an
 integer grid, pushes blocks, and interacts with mechanisms (elevators, conveyors, fragile ground,
 rising terrain, teleporters). This is a from-scratch architecture rewrite of an earlier `1.0.1`
-version — see `MIGRATION.md` for the authoritative, up-to-date status of what has been migrated,
-what decisions were made and why, and what is still pending. Always check `MIGRATION.md` before
-assuming a feature (e.g. climbing) is enabled.
+version; the rewrite is complete and this file is the authoritative record of the current
+architecture and decisions. Don't assume a feature (e.g. climbing) is enabled without checking here
+first — see the Player movement section below.
 
 - Unity Editor version: `6000.5.3f1` (see `ProjectSettings/ProjectVersion.txt`) — open/build with this version.
 - Render pipeline: URP `17.5.0`.
@@ -76,7 +76,7 @@ Everything is built on a grid, not free-floating floats:
   `ClimbStep`, `ClimbDownStep`, etc.) is archived at
   `Assets/Script/_Archive/Player.WithClimb.cs.txt` for reference, not compiled. `Climbable.cs`
   (a `heightUnits` marker component) exists but isn't wired to anything yet. Don't reintroduce climb
-  logic into `Player.cs` without checking `MIGRATION.md` — the design for how it reintegrates with
+  logic into `Player.cs` without discussing it first — the design for how it reintegrates with
   mechanisms hasn't been decided.
 
 ### Mechanism convention
@@ -103,14 +103,6 @@ All mechanism scripts (`PushableBlock`, `SceneSwitcher`, `FragileGround`, `Eleva
   `Scene{n+1}` after a dwell timer — scenes must be named `Scene1`, `Scene2`, etc. for this to work.
   Only `Assets/Scenes/SampleScene.unity` exists currently; the numbered level scenes have not been
   built yet.
-
-### Migration status
-
-Treat `MIGRATION.md` as the source of truth for what's implemented vs. pending — it tracks phase-by-
-phase progress (core movement, mechanisms, prefabs/art, level building, docs) and records concrete
-architectural decisions (grid model, trigger detection, DOTween usage, climb deferral) with the
-reasoning behind each. Re-read it before making changes that touch player movement, mechanism
-triggers, or the grid model, since it may be more current than this file.
 
 ---
 
