@@ -14,7 +14,9 @@ public class StepCounter : MonoBehaviour
     public static StepCounter Instance { get; private set; }
 
     private Text stepText;
+    private Text deadText;
     private int stepCount;
+    private int deathCount;
 
     [RuntimeInitializeOnLoadMethod]
     private static void Bootstrap()
@@ -31,7 +33,12 @@ public class StepCounter : MonoBehaviour
         GameObject canvasPrefab = Resources.Load<GameObject>(CanvasPrefabResourcePath);
         GameObject canvasInstance = Instantiate(canvasPrefab);
         DontDestroyOnLoad(canvasInstance);
-        stepText = canvasInstance.GetComponentInChildren<Text>(true);
+        Text[] texts = canvasInstance.GetComponentsInChildren<Text>(true);
+        foreach (Text text in texts)
+        {
+            if (text.gameObject.name == "StepText") stepText = text;
+            else if (text.gameObject.name == "DeadText") deadText = text;
+        }
 
         SceneManager.sceneLoaded += OnSceneLoaded;
         UpdateText();
@@ -40,6 +47,7 @@ public class StepCounter : MonoBehaviour
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         stepCount = 0;
+        deathCount = 0;
         UpdateText();
     }
 
@@ -50,8 +58,16 @@ public class StepCounter : MonoBehaviour
         UpdateText();
     }
 
+    // Called by Player.cs when the player respawns after falling past the kill plane.
+    public void RegisterDeath()
+    {
+        deathCount++;
+        UpdateText();
+    }
+
     private void UpdateText()
     {
         if (stepText != null) stepText.text = $"Step: {stepCount}";
+        if (deadText != null) deadText.text = $"Dead: {deathCount}";
     }
 }

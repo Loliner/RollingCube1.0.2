@@ -244,6 +244,8 @@ public class Player : MonoBehaviour, IExternallyControllable
     // (input suspended) until the scale-in completes.
     private void Respawn()
     {
+        StepCounter.Instance.RegisterDeath();
+
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         rb.isKinematic = true;
