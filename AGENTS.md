@@ -1,0 +1,150 @@
+# AGENTS.md
+
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+
+## Project overview
+
+RollingCube is a Unity puzzle game (URP) where the player rolls a cube around a level built on an
+integer grid, pushes blocks, and interacts with mechanisms (elevators, conveyors, fragile ground,
+rising terrain, teleporters). This is a from-scratch architecture rewrite of an earlier `1.0.1`
+version; the rewrite is complete and this file is the authoritative record of the current
+architecture and decisions. Don't assume a feature (e.g. climbing) is enabled without checking here
+first — see the Player movement section below.
+
+- Unity Editor version: `6000.5.3f1` (see `ProjectSettings/ProjectVersion.txt`) — open/build with this version.
+- Render pipeline: URP `17.5.0`.
+- Input: new Input System (`Unity.InputSystem`), read via `Keyboard.current` / `wasPressedThisFrame` — not the legacy `Input` class.
+- Tweening: DOTween (`Assets/Plugins/Demigiant/DOTween`), used for all mechanism animation and for driving the player's roll interpolation.
+
+## Commands
+
+There is no CLI build/test pipeline in this repo (no README or scripts define one) — this is worked
+on entirely through the Unity Editor:
+
+- Open the project with Unity Hub / Unity Editor `6000.5.3f1` and press Play to test.
+- Test scaffolding exists (`Assets/Tests/EditMode/RollingCube.EditMode.Tests.asmdef`,
+  `Assets/Tests/PlayMode/RollingCube.PlayMode.Tests.asmdef`, using `com.unity.test-framework`), but
+  no test files have been written yet. Once tests exist, run them via **Window → General → Test
+  Runner** in the Editor.
+- Gameplay scripts live in the `RollingCube` assembly (`Assets/Script/RollingCube.asmdef`), which
+  references `Unity.InputSystem`.
+
+## Architecture
+
+### Grid model
+
+Everything is built on a grid, not free-floating floats:
+
+- A cube cell is `cubeHalfSize` (default `0.5`) half-extent; world positions are corrected to the
+  grid via `SnapToGrid()` (round x/y/z to the nearest `0.25`, correcting float drift like
+  `1.4999999 -> 1.5` without collapsing legitimate sub-integer positions), duplicated in each
+  script that needs it (`Player.cs`, `PushableBlock.cs`).
+- There is no integer floor/level concept — height is just the `y` component of `transform.position`,
+  snapped the same way as x/z. Terrain steps are not required to be a full cube-height apart; level
+  art can (and does — see `Chapter1_Scene2`) place steps at any `0.25` multiple, e.g. half-height
+  (`0.5`) stairs. `Player.cs` used to track a separate integer `groundLevel`/`LevelToY()`, but that
+  assumed whole-cube-height steps and silently corrupted landings on any terrain not on that grid
+  (visible as the cube clipping into geometry) — it was removed in favor of reading
+  `transform.position.y` directly everywhere (blocking checks, fall landings).
+- When `Player.cs` falls (`StartFalling()`/`LandWhenSettled()`), the landing Y is taken from the
+  downward support raycast's hit point (`hit.point.y + cubeHalfSize`), not from wherever physics
+  inertia happened to leave the Rigidbody — physics rest can have small penetration/offset, and
+  snapping that noisy raw value only makes sense once it's anchored to the actual surface it
+  landed on.
+
+### Player movement (`Assets/Script/Player.cs`)
+
+- Kinematic `Rigidbody` driven by hand-rolled input polling in `Update()` (WASD/arrows), one 90°
+  roll per keypress via `StartCoroutine(TryMove(direction))`.
+- `AnimateRoll()` does the actual roll: pivot/axis math is manual (rotate around the bottom edge in
+  the movement direction), but the interpolation parameter `t` is driven by `DOTween.To()` with
+  `Ease.InOutSine` rather than a hand-written lerp — this pairs manual geometry with DOTween-managed
+  timing/lifecycle. Follow this pattern for any new player animation rather than a raw coroutine lerp.
+- Blocked moves (wall or unpushable block ahead) play `ShakeFeedback()` instead of moving.
+- After a successful roll, `FinishAfterRoll()` checks `HasSupportBelow()` (short downward raycast);
+  if unsupported it calls `StartFalling()`, which flips the `Rigidbody` to non-kinematic and lets
+  physics take over — there's no scripted fall animation. `LandWhenSettled()` polls until the
+  Rigidbody's velocity settles and a support raycast hits, then hands control back: re-kinematic-izes
+  the `Rigidbody`, snaps position to the surface it landed on (see Grid model above), and snaps
+  rotation to the nearest 90° so a tumble during the fall doesn't leave the cube off-axis.
+- `BeginExternalControl()` / `EndExternalControl()` / `IsExternallyControlled` let a mechanism (e.g.
+  `ConveyorLogic`) take direct ownership of the transform while suspending input polling.
+  `EndExternalControl()` re-snaps to the grid from wherever the mechanism left the cube, so normal
+  rolling resumes cleanly — always call it when handing control back, don't just stop moving the
+  transform.
+- **Climbing is currently disabled.** The previous climb-capable implementation (`isStuck`,
+  `ClimbStep`, `ClimbDownStep`, etc.) is archived at
+  `Assets/Script/_Archive/Player.WithClimb.cs.txt` for reference, not compiled. `Climbable.cs`
+  (a `heightUnits` marker component) exists but isn't wired to anything yet. Don't reintroduce climb
+  logic into `Player.cs` without discussing it first — the design for how it reintegrates with
+  mechanisms hasn't been decided.
+
+### Mechanism convention
+
+All mechanism scripts (`PushableBlock`, `SceneSwitcher`, `FragileGround`, `Elevator` /
+`LinkedElevator` / `Scene4/Elevators`, `ConveyorLogic`, `Scene2/BridgeTrigger`,
+`Scene2/RisingTerrain`, `TeleportEffect`) share conventions:
+
+- Player detection is always `other.GetComponent<Player>() != null` via `OnTriggerEnter`/`OnTriggerStay`/`OnTriggerExit`
+  — never tag or name comparison. This replaces two different string-based checks used in 1.0.1.
+- Timed/animated behavior is a `StartCoroutine` that drives DOTween tweens (`transform.DOMove`,
+  `DORotate`, `DOScale`, ...) and waits on either `WaitForSeconds` or a `bool done` flag flipped in
+  `OnComplete`, rather than per-frame manual lerping.
+- `Elevator` is a base class with `virtual OnStartAnimation()/OnResetAnimation()` hooks;
+  `LinkedElevator` overrides these to move a second, linked object in sync — follow this pattern
+  (subclass + override) rather than adding branching flags to `Elevator` itself for new linked
+  behavior. `Scene4/Elevators.cs` is a separate, non-inheriting script for animating a whole array of
+  elevators together (different enough shape that it wasn't folded into the `Elevator` hierarchy).
+  `Scene2/` and `Scene4/` hold mechanism scripts specific to those levels.
+- `ConveyorLogic` hands the player off between adjacent conveyor segments by physically overlap-
+  testing for the next `ConveyorLogic` in `forwardPoint`'s direction (`GetNextConveyor`), looping via
+  `player.BeginExternalControl()`/`EndExternalControl()` until no next segment is found.
+- Scene progression: `SceneSwitcher` reads the active scene name with regex `Scene(\d+)` and loads
+  `Scene{n+1}` after a dwell timer — scenes must be named `Scene1`, `Scene2`, etc. for this to work.
+  Only `Assets/Scenes/SampleScene.unity` exists currently; the numbered level scenes have not been
+  built yet.
+
+---
+
+# Codex Game Studios — Agent Architecture
+
+49 coordinated Codex subagents for structured game development.
+Each agent owns a specific domain, enforcing separation of concerns and quality.
+
+## Technology Stack
+
+- **Engine**: Unity 6000.5.3f1 (URP 17.5.0)
+- **Language**: C#
+- **Version Control**: Git with trunk-based development
+- **Input**: Unity Input System (`Unity.InputSystem`)
+- **Tweening**: DOTween
+
+## Project Structure
+
+@.Codex/docs/directory-structure.md
+
+## Technical Preferences
+
+@.Codex/docs/technical-preferences.md
+
+## Coordination Rules
+
+@.Codex/docs/coordination-rules.md
+
+## Collaboration Protocol
+
+**User-driven collaboration, not autonomous execution.**
+Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
+
+- Agents MUST ask "May I write this to [filepath]?" before using Write/Edit tools
+- Agents MUST show drafts or summaries before requesting approval
+- Multi-file changes require explicit approval for the full changeset
+- No commits without user instruction
+
+## Coding Standards
+
+@.Codex/docs/coding-standards.md
+
+## Context Management
+
+@.Codex/docs/context-management.md
