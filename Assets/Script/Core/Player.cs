@@ -11,6 +11,9 @@ using UnityEngine.InputSystem;
 // 4. 位置始终按 0.25 单位吸附网格、修正浮点漂移，兼容非整数高度的地形（SnapToGrid）；
 // 5. 可被外部机关（Elevator、ConveyorLogic 等）通过 IExternallyControllable 接口
 //    临时接管移动（BeginExternalControl/EndExternalControl）。
+// 6. 立方体的一个面固定标记为"符文面"（runeLocalAxis，本地坐标轴），随立方体一起
+//    翻滚；IsRuneFaceDown() 供机关（SceneSwitcher、ElevatorSwitch、Elevator）查询
+//    该面当前是否朝下——通关/触发的朝向判定入口。
 [RequireComponent(typeof(Rigidbody))]
 public class Player : MonoBehaviour, IExternallyControllable
 {
@@ -19,6 +22,7 @@ public class Player : MonoBehaviour, IExternallyControllable
     [SerializeField] private LayerMask surfaceMask = ~0; // layers treated as ground/walls/pushables
     [SerializeField] private float killPlaneY = -5f; // falling below this Y respawns instead of waiting to land; tune per scene, a few units below its lowest terrain
     [SerializeField] private float respawnScaleDuration = 0.3f; // scale-out/scale-in duration on respawn
+    [SerializeField] private Vector3 runeLocalAxis = Vector3.up; // local axis (in the cube's own space) that points out of the rune-marked face; matches wherever the rune visual is placed on the mesh
 
     private Rigidbody rb;
     private bool isRolling; // true while a roll or shake animation is playing
@@ -39,6 +43,15 @@ public class Player : MonoBehaviour, IExternallyControllable
 
     public Transform Transform => transform;
     public bool IsExternallyControlled => isExternallyControlled;
+
+    // Whether the rune-marked face currently points straight down. Rotation is
+    // kept snapped to 90-degree increments (see AnimateRoll/SnapRotation), so
+    // this is effectively a binary check, not a fuzzy alignment threshold.
+    public bool IsRuneFaceDown()
+    {
+        Vector3 worldRuneAxis = transform.TransformDirection(runeLocalAxis).normalized;
+        return Vector3.Dot(worldRuneAxis, Vector3.down) > 0.99f;
+    }
 
     // Lets an external mechanism (e.g. a conveyor belt) drive this transform
     // directly; Update() stops polling input until EndExternalControl() is called.
@@ -128,7 +141,11 @@ public class Player : MonoBehaviour, IExternallyControllable
         yield return new WaitUntil(() => done);
 
         transform.position = targetPos;
-        transform.rotation = targetRot;
+        // Re-snapped here (not just after falls) because the rune-down check
+        // is now a win condition: floating point drift from many chained rolls
+        // could otherwise nudge a "should be exact" orientation just past the
+        // dot-product threshold in IsRuneFaceDown().
+        transform.rotation = SnapRotation(targetRot);
     }
 
     // Brief random jitter to signal a blocked move; blocks input while it plays.

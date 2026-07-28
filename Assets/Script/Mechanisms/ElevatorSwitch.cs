@@ -10,7 +10,10 @@ using UnityEngine;
 // 3. 最后一个物体离开时立即让目标电梯开始缩回（TriggerReset()），不等待、不
 //    需要先到达终点——例如玩家踩满 holdDuration 后先走开，箱子还压着不会缩回；
 //    等箱子也被推走，才会立刻回缩；
-// 4. 自己只负责调用 TriggerMove()/TriggerReset()，移动、驮载、能否复位（reset）
+// 4. requireRuneDown = true 时，只认符文朝下的 Player——箱子没有翻滚/朝向概念，
+//    永远无法满足条件，直接被排除在合法占用者之外；holdDuration 倒计时也只在
+//    仍有合法占用者压着时才推进。requireRuneDown = false（默认）时行为不变。
+// 5. 自己只负责调用 TriggerMove()/TriggerReset()，移动、驮载、能否复位（reset）
 //    等后续行为完全交给 Elevator 自己处理。
 public class ElevatorSwitch : MonoBehaviour
 {
@@ -23,12 +26,20 @@ public class ElevatorSwitch : MonoBehaviour
 
     [SerializeField] private Target[] targets;
     [SerializeField] private float holdDuration = 1f;
+    [SerializeField] private bool requireRuneDown = false; // true: only a Player with its rune face down counts as an occupant; PushableBlock can never satisfy this (no orientation) and is excluded entirely
 
     private readonly HashSet<Collider> occupants = new HashSet<Collider>();
     private Coroutine pending;
 
-    private static bool CanActivate(Collider other) =>
-        other.GetComponent<Player>() != null || other.GetComponent<PushableBlock>() != null;
+    private bool CanActivate(Collider other)
+    {
+        if (requireRuneDown)
+        {
+            Player player = other.GetComponent<Player>();
+            return player != null && player.IsRuneFaceDown();
+        }
+        return other.GetComponent<Player>() != null || other.GetComponent<PushableBlock>() != null;
+    }
 
     void OnTriggerEnter(Collider other)
     {
@@ -39,7 +50,10 @@ public class ElevatorSwitch : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
-        if (!CanActivate(other)) return;
+        // Checks membership directly rather than re-running CanActivate: with
+        // requireRuneDown, CanActivate reads live orientation, which is not a
+        // stable/idempotent check to repeat at exit time.
+        if (!occupants.Contains(other)) return;
         occupants.Remove(other);
         if (occupants.Count > 0) return;
 
@@ -56,7 +70,22 @@ public class ElevatorSwitch : MonoBehaviour
 
     private IEnumerator TriggerAfterDelay()
     {
-        yield return new WaitForSeconds(holdDuration);
+        if (requireRuneDown)
+        {
+            // Polled instead of a flat wait: dwell only counts while at least
+            // one qualifying (rune-down) occupant is still present.
+            float dwellSeconds = 0f;
+            while (dwellSeconds < holdDuration)
+            {
+                if (occupants.Count > 0) dwellSeconds += Time.deltaTime;
+                yield return null;
+            }
+        }
+        else
+        {
+            yield return new WaitForSeconds(holdDuration);
+        }
+
         pending = null;
 
         foreach (Target target in targets)

@@ -1,30 +1,35 @@
-using System;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+// 通关判定：玩家必须以符文面朝下的姿态在此停留 requiredDwellSeconds 秒才算通关。
+// 停留时长只在符文朝下时累积（IsRuneFaceDown()）；朝向不对时不推进。玩家站在本
+// 格子上时无法通过翻滚改变朝向（翻滚必然离开当前格），所以不需要处理"停留中途
+// 从朝下变为不朝下"的过渡——真实发生的只有"从进入到离开全程朝下/全程不朝下"。
 public class SceneSwitcher : MonoBehaviour
 {
     [SerializeField] private float requiredDwellSeconds = 2f;
 
     private bool isTriggered;
-    private long triggerTimeMs;
+    private float dwellSeconds;
 
     void OnTriggerEnter(Collider other)
     {
         if (other.GetComponent<Player>() == null) return;
 
         isTriggered = true;
-        triggerTimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        dwellSeconds = 0f;
     }
 
     void OnTriggerStay(Collider other)
     {
-        if (!isTriggered || other.GetComponent<Player>() == null) return;
+        if (!isTriggered) return;
 
-        long elapsedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - triggerTimeMs;
-        if (elapsedMs < requiredDwellSeconds * 1000)
-            return;
+        Player player = other.GetComponent<Player>();
+        if (player == null || !player.IsRuneFaceDown()) return;
+
+        dwellSeconds += Time.deltaTime;
+        if (dwellSeconds < requiredDwellSeconds) return;
 
         isTriggered = false;
 
@@ -61,5 +66,6 @@ public class SceneSwitcher : MonoBehaviour
     {
         if (other.GetComponent<Player>() == null) return;
         isTriggered = false;
+        dwellSeconds = 0f;
     }
 }

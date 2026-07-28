@@ -49,6 +49,13 @@
 - 玩家进入开关触发器后，需持续停留 `holdDuration` 秒才触发目标升降台；提前离开则取消。
 - 支持同时触发多个升降台，每个可配置独立延迟（`delay`），实现顺序联动。
 
+### 3.7 符文朝向门控（可选，见 `mechanism-rune-orientation.md`）
+
+- `Elevator` 和 `ElevatorSwitch` 都新增了可选的 `requireRuneDown`（默认 `false`，不改变原有行为）。
+- `Elevator.requireRuneDown = true`：只在 `selfTriggered = true` 时有意义，限制自触发只能由符文朝下的玩家触发（`OnTriggerEnter` 里判断是否调用 `TriggerMove()`）；**不影响 riders 列表**——箱子和任意朝向的玩家仍会被无条件搭载，电梯一旦因任何原因动起来都会带走当前所有 rider。
+- `ElevatorSwitch.requireRuneDown = true`：`CanActivate` 排除 `PushableBlock`（箱子没有朝向概念），只认朝向正确的玩家；`holdDuration` 倒计时也改为轮询式——只在仍有合法占用者时才推进。
+- 详细规则、公式、边界情况见 `mechanism-rune-orientation.md` 3.3/3.4 节，不在此重复。
+
 ---
 
 ## 4. 公式
@@ -74,6 +81,8 @@
 | 木箱被携带到空中后平台复位 | 木箱 `EndExternalControl()` 后检查支撑，无支撑则触发下落 |
 | 开关持续时间到后玩家仍站在上面 | 正常触发；后续是否 reset 由 `Elevator.reset` 控制 |
 | 多开关触发同一升降台 | `isTriggered` 锁定，后续 `TriggerMove()` 调用均被忽略 |
+| `Elevator.requireRuneDown = true` 时箱子进入自触发范围 | 加入 `riders`（会被搭载），但不调用 `TriggerMove()`；电梯不会因箱子进入而自己动 |
+| `ElevatorSwitch.requireRuneDown = true` 时箱子压上开关 | `CanActivate` 判定为 `false`，不计入 `occupants`，不启动倒计时 |
 
 ---
 
@@ -85,6 +94,7 @@
 - **DOTween** — 所有移动动画
 - **ElevatorSwitch.cs** — 外部触发开关（非必须，取决于关卡设计）
 - **LinkedElevator.cs** — 联动扩展（非必须）
+- **mechanism-rune-orientation.md** — `requireRuneDown` 的朝向判定来源（`Player.IsRuneFaceDown()`），双向依赖
 
 ---
 
@@ -101,6 +111,8 @@
 | `switcherFollow` | bool | false | 触发器碰撞体是否跟随移动 |
 | `holdDuration`（Switch） | float | 1f | 开关需持续踩住的时长（秒） |
 | `delay`（Switch Target） | float | 0f | 各目标升降台的额外触发延迟 |
+| `requireRuneDown`（Elevator） | bool | false | 仅在 `selfTriggered = true` 时生效；只门控自触发，不影响 riders 搭载 |
+| `requireRuneDown`（Switch） | bool | false | true 时排除箱子，只认符文朝下的玩家 |
 
 ---
 
@@ -116,3 +128,5 @@
 - [ ] `ElevatorSwitch` 需持续踩住 `holdDuration` 秒才触发，提前离开取消
 - [ ] `LinkedElevator` 触发时联动第二个物体同步移动
 - [ ] 升降台复位过程中玩家站在上面不会被携带回去（riders 列表已清空）
+- [ ] `Elevator.requireRuneDown = true` 时，箱子进入不会触发自动移动，但会被后续因其他原因发生的移动搭载
+- [ ] `ElevatorSwitch.requireRuneDown = true` 时，箱子压上开关没有反应；朝向正确的玩家踩住 `holdDuration` 秒后正常触发

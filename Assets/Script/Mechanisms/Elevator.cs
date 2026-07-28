@@ -12,7 +12,11 @@ using UnityEngine;
 //    还在平台上的物体一并带回起点。
 // 4. 既支持通过自身 trigger 触发移动（selfTriggered=true），也支持由外部单独的
 //    触发器调用 TriggerMove()/TriggerReset() 触发移动（见 ElevatorSwitch）。
-// 5. TriggerMove()/TriggerReset() 在动画进行到一半时被对方调用也能正确响应——
+// 5. requireRuneDown = true 时，自身 trigger 只有在符文朝下的 Player 进入时才会
+//    调用 TriggerMove()（箱子永远不满足）；这只影响"谁能触发移动"，riders 列表
+//    仍然无条件收录所有 IExternallyControllable（箱子/玩家都会被搭载）——电梯
+//    动起来的原因和电梯搭载谁是两件独立的事。
+// 6. TriggerMove()/TriggerReset() 在动画进行到一半时被对方调用也能正确响应——
 //    直接从当前实际位置反向重新 tween，而不是必须等先到达终点/起点才能改变方向
 //    （压力板场景下开关可能被反复按下/松开，动画不能只允许从静止状态开始）。
 public class Elevator : MonoBehaviour
@@ -27,6 +31,7 @@ public class Elevator : MonoBehaviour
     [SerializeField] private bool switcherFollow;
     [SerializeField] protected float moveDuration = 2f;
     [SerializeField] private bool selfTriggered = true; // whether stepping onto the elevator's own trigger starts movement
+    [SerializeField] private bool requireRuneDown = false; // only meaningful when selfTriggered: true restricts self-triggering to a Player whose rune face is down (PushableBlock can never satisfy this); does not affect who gets carried as a rider
 
     private Vector3 elevatorStartPos;
     private Vector3 switcherStartPos;
@@ -46,7 +51,14 @@ public class Elevator : MonoBehaviour
         if (rider == null) return;
         if (!riders.Contains(rider)) riders.Add(rider);
 
-        if (selfTriggered) TriggerMove();
+        if (selfTriggered && CanTriggerMove(other)) TriggerMove();
+    }
+
+    private bool CanTriggerMove(Collider other)
+    {
+        if (!requireRuneDown) return true;
+        Player player = other.GetComponent<Player>();
+        return player != null && player.IsRuneFaceDown();
     }
 
     void OnTriggerExit(Collider other)
