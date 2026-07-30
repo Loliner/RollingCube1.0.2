@@ -1,150 +1,157 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working in this repository.
 
 ## Project overview
 
-RollingCube is a Unity puzzle game (URP) where the player rolls a cube around a level built on an
-integer grid, pushes blocks, and interacts with mechanisms (elevators, conveyors, fragile ground,
-rising terrain, teleporters). This is a from-scratch architecture rewrite of an earlier `1.0.1`
-version; the rewrite is complete and this file is the authoritative record of the current
-architecture and decisions. Don't assume a feature (e.g. climbing) is enabled without checking here
-first — see the Player movement section below.
+RollingCube is a Unity URP puzzle game in which the player rolls a cube on a one-cell XZ grid,
+tracks a marked rune face, pushes blocks, and operates mechanisms including elevators, pressure
+switches, conveyors, fragile ground, rising terrain, and teleporters.
 
-- Unity Editor version: `6000.5.3f1` (see `ProjectSettings/ProjectVersion.txt`) — open/build with this version.
-- Render pipeline: URP `17.5.0`.
-- Input: new Input System (`Unity.InputSystem`), read via `Keyboard.current` / `wasPressedThisFrame` — not the legacy `Input` class.
-- Tweening: DOTween (`Assets/Plugins/Demigiant/DOTween`), used for all mechanism animation and for driving the player's roll interpolation.
+The current victory condition is global: the player must occupy the level's `SceneSwitcher` with
+the rune face pointing down and remain there for two seconds.
 
-## Commands
+- Unity Editor: `6000.5.3f1`
+- URP: `17.5.0`
+- Input System: `1.19.0`
+- Tweening: DOTween in `Assets/Plugins/Demigiant/DOTween`
+- Gameplay assembly: `Assets/Script/RollingCube.asmdef`
 
-There is no CLI build/test pipeline in this repo (no README or scripts define one) — this is worked
-on entirely through the Unity Editor:
+## Commands and testing
 
-- Open the project with Unity Hub / Unity Editor `6000.5.3f1` and press Play to test.
-- Test scaffolding exists (`Assets/Tests/EditMode/RollingCube.EditMode.Tests.asmdef`,
-  `Assets/Tests/PlayMode/RollingCube.PlayMode.Tests.asmdef`, using `com.unity.test-framework`), but
-  no test files have been written yet. Once tests exist, run them via **Window → General → Test
-  Runner** in the Editor.
-- Gameplay scripts live in the `RollingCube` assembly (`Assets/Script/RollingCube.asmdef`), which
-  references `Unity.InputSystem`.
+The project has no supported command-line build or test pipeline.
 
-## Architecture
+- Open it in Unity `6000.5.3f1`.
+- Use Play Mode for gameplay and physics validation.
+- Use **Window → General → Test Runner** for EditMode and PlayMode tests.
+- Test assemblies exist under `Assets/Tests/EditMode/` and `Assets/Tests/PlayMode/`, but no test
+  source files currently exist.
 
-### Grid model
+Do not claim Unity compilation or Play Mode verification unless it was actually run in the Editor.
 
-Everything is built on a grid, not free-floating floats:
+## Design source of truth
 
-- A cube cell is `cubeHalfSize` (default `0.5`) half-extent; world positions are corrected to the
-  grid via `SnapToGrid()` (round x/y/z to the nearest `0.25`, correcting float drift like
-  `1.4999999 -> 1.5` without collapsing legitimate sub-integer positions), duplicated in each
-  script that needs it (`Player.cs`, `PushableBlock.cs`).
-- There is no integer floor/level concept — height is just the `y` component of `transform.position`,
-  snapped the same way as x/z. Terrain steps are not required to be a full cube-height apart; level
-  art can (and does — see `Chapter1_Scene2`) place steps at any `0.25` multiple, e.g. half-height
-  (`0.5`) stairs. `Player.cs` used to track a separate integer `groundLevel`/`LevelToY()`, but that
-  assumed whole-cube-height steps and silently corrupted landings on any terrain not on that grid
-  (visible as the cube clipping into geometry) — it was removed in favor of reading
-  `transform.position.y` directly everywhere (blocking checks, fall landings).
-- When `Player.cs` falls (`StartFalling()`/`LandWhenSettled()`), the landing Y is taken from the
-  downward support raycast's hit point (`hit.point.y + cubeHalfSize`), not from wherever physics
-  inertia happened to leave the Rigidbody — physics rest can have small penetration/offset, and
-  snapping that noisy raw value only makes sense once it's anchored to the actual surface it
-  landed on.
+- Chapter rules: `design/gdd/chapter-01.md`
+- Level maps: `design/gdd/level-01.md` through `design/gdd/level-09.md`
+- Map language: `design/gdd/level-map-schema.md` (RCMap 1.1)
+- Mechanism rules: `design/gdd/mechanism-*.md`
 
-### Player movement (`Assets/Script/Player.cs`)
+RCMap describes walkable surface coordinates, height layers, entities, drops, rides, pushes, and
+verified standard solutions. For Chapter 1:
 
-- Kinematic `Rigidbody` driven by hand-rolled input polling in `Update()` (WASD/arrows), one 90°
-  roll per keypress via `StartCoroutine(TryMove(direction))`.
-- `AnimateRoll()` does the actual roll: pivot/axis math is manual (rotate around the bottom edge in
-  the movement direction), but the interpolation parameter `t` is driven by `DOTween.To()` with
-  `Ease.InOutSine` rather than a hand-written lerp — this pairs manual geometry with DOTween-managed
-  timing/lifecycle. Follow this pattern for any new player animation rather than a raw coroutine lerp.
-- Blocked moves (wall or unpushable block ahead) play `ShakeFeedback()` instead of moving.
-- After a successful roll, `FinishAfterRoll()` checks `HasSupportBelow()` (short downward raycast);
-  if unsupported it calls `StartFalling()`, which flips the `Rigidbody` to non-kinematic and lets
-  physics take over — there's no scripted fall animation. `LandWhenSettled()` polls until the
-  Rigidbody's velocity settles and a support raycast hits, then hands control back: re-kinematic-izes
-  the `Rigidbody`, snaps position to the surface it landed on (see Grid model above), and snaps
-  rotation to the nearest 90° so a tumble during the fall doesn't leave the cube off-axis.
-- `BeginExternalControl()` / `EndExternalControl()` / `IsExternallyControlled` let a mechanism (e.g.
-  `ConveyorLogic`) take direct ownership of the transform while suspending input polling.
-  `EndExternalControl()` re-snaps to the grid from wherever the mechanism left the cube, so normal
-  rolling resumes cleanly — always call it when handing control back, don't just stop moving the
-  transform.
-- **Climbing is currently disabled.** The previous climb-capable implementation (`isStuck`,
-  `ClimbStep`, `ClimbDownStep`, etc.) is archived at
-  `Assets/Script/_Archive/Player.WithClimb.cs.txt` for reference, not compiled. `Climbable.cs`
-  (a `heightUnits` marker component) exists but isn't wired to anything yet. Don't reintroduce climb
-  logic into `Player.cs` without discussing it first — the design for how it reintegrates with
-  mechanisms hasn't been decided.
+- `E` always requires `rune.DOWN`.
+- The dwell time is always two seconds.
+- Those defaults are not repeated or overridden in individual levels.
+- Every primary solution must end at `E` with the rune face down.
 
-### Mechanism convention
+The Chapter 1 scene files exist under `Assets/Scenes/Chapter1/`, but they have not yet been rebuilt
+against the current RCMap documents. Until a scene passes its GDD acceptance criteria, treat the
+corresponding RCMap as the intended layout and the Unity scene as unfinished implementation.
 
-All mechanism scripts (`PushableBlock`, `SceneSwitcher`, `FragileGround`, `Elevator` /
-`LinkedElevator` / `Scene4/Elevators`, `ConveyorLogic`, `Scene2/BridgeTrigger`,
-`Scene2/RisingTerrain`, `TeleportEffect`) share conventions:
+## Grid and height model
 
-- Player detection is always `other.GetComponent<Player>() != null` via `OnTriggerEnter`/`OnTriggerStay`/`OnTriggerExit`
-  — never tag or name comparison. This replaces two different string-based checks used in 1.0.1.
-- Timed/animated behavior is a `StartCoroutine` that drives DOTween tweens (`transform.DOMove`,
-  `DORotate`, `DOScale`, ...) and waits on either `WaitForSeconds` or a `bool done` flag flipped in
-  `OnComplete`, rather than per-frame manual lerping.
-- `Elevator` is a base class with `virtual OnStartAnimation()/OnResetAnimation()` hooks;
-  `LinkedElevator` overrides these to move a second, linked object in sync — follow this pattern
-  (subclass + override) rather than adding branching flags to `Elevator` itself for new linked
-  behavior. `Scene4/Elevators.cs` is a separate, non-inheriting script for animating a whole array of
-  elevators together (different enough shape that it wasn't folded into the `Elevator` hierarchy).
-  `Scene2/` and `Scene4/` hold mechanism scripts specific to those levels.
-- `ConveyorLogic` hands the player off between adjacent conveyor segments by physically overlap-
-  testing for the next `ConveyorLogic` in `forwardPoint`'s direction (`GetNextConveyor`), looping via
-  `player.BeginExternalControl()`/`EndExternalControl()` until no next segment is found.
-- Scene progression: `SceneSwitcher` reads the active scene name with regex `Scene(\d+)` and loads
-  `Scene{n+1}` after a dwell timer — scenes must be named `Scene1`, `Scene2`, etc. for this to work.
-  Only `Assets/Scenes/SampleScene.unity` exists currently; the numbered level scenes have not been
-  built yet.
+- One normal XZ move is one cube width: `cubeHalfSize * 2`, normally `1.0`.
+- Positions are snapped to `0.25` increments by `SnapToGrid()` in `Player` and `PushableBlock`.
+- RCMap Y values represent walkable surface altitude, not Transform center height.
+- Player center Y is `surface_y + cubeHalfSize`.
+- There is no integer floor index. Legitimate terrain heights may differ by `0.25` or `0.50`.
+- Upward movement into raised terrain is blocked because climbing is disabled.
+- A successful move without support calls `StartFalling()`. `LandWhenSettled()` derives landing Y
+  from the support raycast hit and snaps position and rotation.
+- Falling below `killPlaneY` respawns the player at the position and rotation recorded in `Awake()`.
 
----
+## Player movement
 
-# Claude Code Game Studios — Agent Architecture
+Authoritative implementation: `Assets/Script/Core/Player.cs`.
 
-49 coordinated Claude Code subagents for structured game development.
-Each agent owns a specific domain, enforcing separation of concerns and quality.
+- `Update()` polls `Keyboard.current`; do not use the legacy `Input` API.
+- Each keypress starts one 90-degree roll through `TryMove()`.
+- `AnimateRoll()` uses manual pivot geometry with DOTween-driven interpolation and
+  `Ease.InOutSine`.
+- Blocked moves play `ShakeFeedback()`.
+- `TryGetSupportBelow()` controls the transition to physics falling.
+- `BeginExternalControl()` and `EndExternalControl()` are required when a mechanism owns movement.
+- `IsRuneFaceDown()` is the shared orientation query used by goals and rune-gated mechanisms.
+- `runeLocalAxis` must match the face carrying the visible rune.
 
-## Technology Stack
+Climbing is disabled. `Assets/Script/Mechanisms/Climbable.cs` is only a marker and is not connected
+to `Player`. Do not add climbing behavior without a design decision covering its interaction with
+pushables, elevators, conveyors, and falling.
 
-- **Engine**: Unity 6000.5.3f1 (URP 17.5.0)
-- **Language**: C#
-- **Version Control**: Git with trunk-based development
-- **Input**: Unity Input System (`Unity.InputSystem`)
-- **Tweening**: DOTween
+## Pushable blocks
 
-## Project Structure
+Authoritative implementation: `Assets/Script/Mechanisms/PushableBlock.cs`.
+
+- A push moves the block one XZ cell with DOTween.
+- Non-trigger colliders block the target cell; triggers remain valid destinations.
+- Unsupported blocks become non-kinematic and fall under physics.
+- Blocks do not use the player's kill-plane respawn.
+- A pushed block implements `IExternallyControllable` and can be carried by elevators.
+
+## Mechanism conventions
+
+Mechanism scripts live in `Assets/Script/Mechanisms/`.
+
+- Detect players with `other.GetComponent<Player>()`, not tags or object names.
+- Detect pushable blocks with `other.GetComponent<PushableBlock>()`.
+- Use DOTween for mechanism animation.
+- Use coroutines for waits and delayed state changes.
+- `Elevator` supports self-triggering, external switches, riders, resets, arrival-timed resets, and
+  optional rune-down gating.
+- `ElevatorSwitch` supports player or box occupants, multiple targets, dwell time, and reset when
+  the last qualifying occupant leaves.
+- Extend linked elevator behavior through `LinkedElevator` hooks instead of adding level-specific
+  branches to `Elevator`.
+- Always call `EndExternalControl()` when a mechanism returns control.
+
+## Scene progression
+
+`Assets/Script/Mechanisms/SceneSwitcher.cs` accepts scene names matching:
+
+```text
+Chapter{chapter}_Scene{scene}
+```
+
+After a valid two-second rune-down dwell it:
+
+1. records completion through `LevelProgress`;
+2. loads the next scene in the chapter if registered;
+3. otherwise tries `Chapter{chapter + 1}_Scene1`;
+4. otherwise logs a warning.
+
+Do not use the older `Scene1`, `Scene2` naming convention in new content.
+
+## Agent architecture
+
+The repository includes Claude agent definitions and shared production guidance under `.claude/`.
+
+## Project structure
 
 @.claude/docs/directory-structure.md
 
-## Technical Preferences
+## Technical preferences
 
 @.claude/docs/technical-preferences.md
 
-## Coordination Rules
+## Coordination rules
 
 @.claude/docs/coordination-rules.md
 
-## Collaboration Protocol
+## Collaboration protocol
 
 **User-driven collaboration, not autonomous execution.**
-Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
 
-- Agents MUST ask "May I write this to [filepath]?" before using Write/Edit tools
-- Agents MUST show drafts or summaries before requesting approval
-- Multi-file changes require explicit approval for the full changeset
-- No commits without user instruction
+Default workflow: **Question → Options → Decision → Draft → Approval**
 
-## Coding Standards
+- Ask before writing unless the user has already approved the exact file or full changeset.
+- Preserve unrelated user changes in a dirty worktree.
+- Multi-file changes require explicit approval for the changeset.
+- Do not create commits unless the user asks.
+
+## Coding standards
 
 @.claude/docs/coding-standards.md
 
-## Context Management
+## Context management
 
 @.claude/docs/context-management.md
