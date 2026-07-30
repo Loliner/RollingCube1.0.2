@@ -6,6 +6,7 @@ public interface IExternallyControllable
 {
     Transform Transform { get; }
     bool IsExternallyControlled { get; }
+    bool CanBeginExternalControl { get; }
     void BeginExternalControl();
     void EndExternalControl();
 }

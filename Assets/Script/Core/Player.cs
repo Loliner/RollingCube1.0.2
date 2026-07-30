@@ -43,6 +43,7 @@ public class Player : MonoBehaviour, IExternallyControllable
 
     public Transform Transform => transform;
     public bool IsExternallyControlled => isExternallyControlled;
+    public bool CanBeginExternalControl => !isRolling && !isFalling && !isExternallyControlled;
 
     // Whether the rune-marked face currently points straight down. Rotation is
     // kept snapped to 90-degree increments (see AnimateRoll/SnapRotation), so

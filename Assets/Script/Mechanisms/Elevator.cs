@@ -51,7 +51,8 @@ public class Elevator : MonoBehaviour
         if (rider == null) return;
         if (!riders.Contains(rider)) riders.Add(rider);
 
-        if (selfTriggered && CanTriggerMove(other)) TriggerMove();
+        if (selfTriggered && CanTriggerMove(other))
+            StartCoroutine(TriggerMoveWhenRiderSettled(rider));
     }
 
     private bool CanTriggerMove(Collider other)
@@ -59,6 +60,20 @@ public class Elevator : MonoBehaviour
         if (!requireRuneDown) return true;
         Player player = other.GetComponent<Player>();
         return player != null && player.IsRuneFaceDown();
+    }
+
+    // Trigger colliders overlap a rolling cube before its center reaches the
+    // platform. Starting the carrier tween at that instant would kill the
+    // unfinished roll and compute the ride from a partial-cell position.
+    // Wait until the entering rider has completed its own movement, then take
+    // control from the stable platform center.
+    private IEnumerator TriggerMoveWhenRiderSettled(IExternallyControllable rider)
+    {
+        while (riders.Contains(rider) && !rider.CanBeginExternalControl)
+            yield return null;
+
+        if (riders.Contains(rider))
+            TriggerMove();
     }
 
     void OnTriggerExit(Collider other)

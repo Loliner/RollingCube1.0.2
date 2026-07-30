@@ -21,6 +21,7 @@ public class PushableBlock : MonoBehaviour, IExternallyControllable
 
     public Transform Transform => transform;
     public bool IsExternallyControlled => isExternallyControlled;
+    public bool CanBeginExternalControl => !isMoving && !isExternallyControlled;
 
     // Lets an external mechanism (e.g. an elevator) drive this transform directly.
     public void BeginExternalControl()
