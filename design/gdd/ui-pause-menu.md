@@ -2,7 +2,8 @@
 
 ## 1. 概述
 
-项目目前没有任何暂停能力——Esc 键未被占用，一旦进入关卡就只能一直玩下去或强行退出。本机制为 Player 接入 Esc 触发的暂停弹框：按下 Esc 将 Time.timeScale 冻住为 0、弹出包含三个按钮（继续/重置/回到主界面）的面板；再按一次 Esc 或点击"继续"则恢复游戏。因为项目里还没任何交互式 UI（按钮/EventSystem），本机制也会引入项目的第一个 EventSystem，并新建一个最简单的 MainMenu 占位场景作为"回到主界面"的跳转目标。
+关卡内按 Esc 会冻结游戏并显示暂停面板，提供继续、重置和回到主界面三个操作；再次按
+Esc 或点击“继续”恢复游戏。回到主界面会进入正式的章节与关卡选择界面。
 
 ---
 
@@ -25,7 +26,8 @@
 - `Player.cs` 的 `Update()` 新增暂停判断：暂停期间跳过按键检测，不进入 `TryMove`，避免 `Update()` 在 `timeScale = 0` 时仍正常运行、导致玩家在暂停期间排队或触发新的翻滚
 - 面板开/关无动画，直接 `SetActive(true/false)`（与本项目其余机关普遍使用 DOTween 动效不同——面板的作用是瞬时断开，不是过渡，见「玩家感受」）
 - 架构：新增 `PauseMenu.cs` 单例，与 `StepCounter.cs` 同样通过 `[RuntimeInitializeOnLoadMethod]` 启动并 `DontDestroyOnLoad`，从 `Resources` 加载 `PauseMenuCanvas.prefab`；该 prefab 包含项目里第一个 `EventSystem`、一个带 `GraphicRaycaster` 的 `Canvas`、一层全屏半透明背景遮罩，以及三个按钮
-- 新建 `Assets/Scenes/MainMenu.unity` 占位场景（背景 + 标题文字，暂无按钮逻辑），并加入 Build Settings，作为"回到主界面"当前唯一可跳转的目标；正式的开始游戏界面设计会在此场景基础上补充
+- `Assets/Scenes/MainMenu.unity` 是“回到主界面”的目标，并由 `MainMenu.cs` 提供章节与
+  关卡选择。
 
 ---
 
@@ -62,8 +64,8 @@ isPaused == false → Time.timeScale = 1，面板 SetActive(false)，Player.Upda
 - **Player.cs** — `Update()` 新增暂停判断，读取 `PauseMenu` 暴露的暂停状态后跳过按键检测
 - **StepCounter.cs** — "重置"/"回到主界面"都会触发 `SceneManager.LoadScene`，其现有的 `OnSceneLoaded` 钩子会自然清零 Step/Dead 计数，本机制不需要重复处理
 - **SceneSwitcher.cs** — 场景命名规则（`Chapter{n}_Scene{m}`）用于"重置"时取得当前场景名并重新加载
-- **Assets/Scenes/MainMenu.unity**（本机制新建的占位场景） — "回到主界面"当前唯一的跳转目标
-- **[[ui-start-screen]]** — 在 `MainMenu.unity` 基础上补充章节/关卡选择面板，并为本机制新增"当前场景是 MainMenu 时跳过 Esc 处理"的判断，把 Esc 让给它自己的返回导航
+- **Assets/Scenes/MainMenu.unity** — “回到主界面”的跳转目标
+- **[[ui-start-screen]]** — 定义章节/关卡选择和 MainMenu 中的 Esc 返回导航
 
 ---
 
@@ -82,6 +84,6 @@ isPaused == false → Time.timeScale = 1，面板 SetActive(false)，Player.Upda
 - [ ] 暂停面板显示三个按钮，从上到下依次为"继续"、"重置"、"回到主界面"
 - [ ] 再按一次 Esc 或点击"继续"，游戏立即恢复正常运行，之前冻结的动画从冻结点继续播放
 - [ ] 点击"重置"，当前关卡场景重新加载，Step/Dead 计数归零，`Time.timeScale` 恢复为 1
-- [ ] 点击"回到主界面"，加载 `MainMenu` 占位场景，`Time.timeScale` 恢复为 1
+- [ ] 点击"回到主界面"，加载正式的 `MainMenu`，`Time.timeScale` 恢复为 1
 - [ ] 暂停期间按 WASD/方向键不会让方块排队或立即执行新的翻滚
-- [ ] `MainMenu.unity` 已加入 Build Settings，可以被 `SceneManager.LoadScene` 正确加载
+- [x] `MainMenu.unity` 已加入 Build Settings

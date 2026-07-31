@@ -2,7 +2,8 @@
 
 ## 1. 概述
 
-项目目前的 `MainMenu.unity` 只是一个占位场景（标题文字 + 背景），没有任何可交互内容，玩家无法从主界面进入任何关卡，也没有"哪些关卡已经解锁"的概念。本机制把 `MainMenu.unity` 建成正式的开始界面：进入即显示章节选择（标题 + 章节按钮列表），点击章节切换到关卡选择（该章节全部关卡的按钮网格），点击已解锁的关卡直接进入对应场景；未通关的后续关卡按钮显示为灰色且不可点击。解锁进度写入本地存档文件，重新启动游戏后沿用之前的进度。本机制同时补上一个会前就存在的缺口：`Chapter1_Scene8`/`Scene9` 从未注册进 Build Settings，导致无法通过 `SceneManager.LoadScene` 按名字加载。
+`MainMenu.unity` 是正式的章节与关卡选择界面：进入后显示章节列表，点击章节后显示关卡网格，
+已解锁关卡可直接进入，后续关卡显示为禁用。解锁进度保存在本地并跨启动保留。
 
 ---
 
@@ -49,9 +50,10 @@
 - `RegisterCompletion(chapter, scene)` 把对应 `levelId` 标记为 `completed = true` 后立即回写整份存档到磁盘（写穿，不做延迟批量写入），避免异常退出/崩溃丢失刚刚打完的这一关。
 - `IsUnlocked(chapter, scene)` 供 `MainMenu.cs` 在铺关卡按钮网格时逐个调用，决定每个按钮的 `interactable`。
 
-### 3.5 Build Settings 缺口修复
+### 3.5 Build Settings
 
-- 把 `Assets/Scenes/Chapter1/Chapter1_Scene8.unity`、`Chapter1_Scene9.unity` 加入 Build Settings（当前只注册到 Scene7）。这是关卡选择网格能展示并跳转全部 9 关的前提——`SceneManager.LoadScene` 按名字加载未注册的场景会直接报错。
+- `MainMenu` 与 `Chapter1_Scene1`~`Chapter1_Scene9` 均必须保持在 Build Settings 中，确保
+  关卡选择和顺序通关都能按场景名加载。
 
 ---
 
@@ -99,10 +101,9 @@ levelsPerChapter[1] = 9
 - **SceneSwitcher.cs** — 在其现有的关卡完成判定分支里新增一行 `LevelProgress.Instance.RegisterCompletion(chapter, scene)` 调用；不改变其原有的下一关跳转逻辑
 - **PauseMenu.cs** — 新增"当前场景名等于 `MainMenuSceneName` 时跳过 Esc 处理"的判断，把 Esc 让给本机制的 `MainMenu.cs`；[[ui-pause-menu]] 需要回链本文档说明这个联动
 - **Assets/Scenes/MainMenu.unity** — 本机制的落地场景，在既有的 `TitleText`/`Background` 基础上新增章节/关卡选择面板层级
-- **ProjectSettings/EditorBuildSettings.asset** — 补registered `Chapter1_Scene8`/`Scene9`
-- **新建 LevelProgress.cs** — 本机制新增的存档单例，供 `SceneSwitcher.cs` 和 `MainMenu.cs` 双向调用
-- **新建 MainMenu.cs** — 本机制新增的场景脚本，挂在 `MainMenuCanvas` 下，负责面板切换、按钮网格铺设、Esc 处理
-- **design/gdd/（待建的"完成关卡界面" GDD）** — 未来的关卡完成界面（回到主界面/重玩/下一关）大概率也会调用 `LevelProgress`/`SceneSwitcher` 的完成信号，那份文档需要回链本文档
+- **ProjectSettings/EditorBuildSettings.asset** — 注册 `MainMenu` 与 Chapter 1 全部 9 个场景
+- **LevelProgress.cs** — 存档单例，供 `SceneSwitcher.cs` 和 `MainMenu.cs` 调用
+- **MainMenu.cs** — 负责面板切换、关卡按钮、解锁状态和 Esc 返回导航
 
 ---
 
@@ -127,4 +128,4 @@ levelsPerChapter[1] = 9
 - [ ] 点击已解锁的关卡按钮，正确加载对应的 `Chapter1_SceneN` 场景
 - [ ] 关卡选择面板按 Esc，行为等同于点击"返回"，回到章节选择面板；章节选择面板按 Esc 无任何反应，且不会弹出暂停菜单
 - [ ] 从关卡内暂停菜单点击"回到主界面"进入 `MainMenu`，按 Esc 不会弹出暂停菜单（确认 `PauseMenu.cs` 的场景名判断生效）
-- [ ] `Chapter1_Scene8`、`Chapter1_Scene9` 已加入 Build Settings，可以被 `SceneManager.LoadScene` 正确加载
+- [x] `Chapter1_Scene8`、`Chapter1_Scene9` 已加入 Build Settings

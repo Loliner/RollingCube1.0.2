@@ -24,8 +24,8 @@ The project has no supported command-line build or test pipeline.
 - Open it in Unity `6000.5.3f1`.
 - Use Play Mode for gameplay and physics validation.
 - Use **Window → General → Test Runner** for EditMode and PlayMode tests.
-- Test assemblies exist under `Assets/Tests/EditMode/` and `Assets/Tests/PlayMode/`, but no test
-  source files currently exist.
+- `Assets/Tests/PlayMode/Chapter1CompletionTests.cs` covers the primary completion route for all
+  nine Chapter 1 levels. EditMode currently contains only its assembly definition.
 
 Do not claim Unity compilation or Play Mode verification unless it was actually run in the Editor.
 
@@ -44,9 +44,10 @@ verified standard solutions. For Chapter 1:
 - Those defaults are not repeated or overridden in individual levels.
 - Every primary solution must end at `E` with the rune face down.
 
-The Chapter 1 scene files exist under `Assets/Scenes/Chapter1/`, but they have not yet been rebuilt
-against the current RCMap documents. Until a scene passes its GDD acceptance criteria, treat the
-corresponding RCMap as the intended layout and the Unity scene as unfinished implementation.
+All nine Chapter 1 scenes have been rebuilt from RCMap 1.1. Their shared construction source is
+`Assets/Editor/Chapter1SceneBuilder.cs`; update the level GDD, builder, and primary-route test
+together whenever a map changes. Manual acceptance criteria remain the final check for feel,
+feedback, and presentation.
 
 ## Grid and height model
 

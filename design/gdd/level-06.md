@@ -8,7 +8,7 @@
 
 **场景文件**：`Assets/Scenes/Chapter1/Chapter1_Scene6.unity`
 
-**状态**：Designed — 待场景重建
+**状态**：Implemented — RCMap 场景已搭建，主路线 PlayMode 测试已覆盖
 
 ---
 

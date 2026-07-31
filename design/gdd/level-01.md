@@ -8,7 +8,7 @@
 
 **场景文件**：`Assets/Scenes/Chapter1/Chapter1_Scene1.unity`
 
-**状态**：Designed — 待场景重建
+**状态**：Implemented — RCMap 场景已搭建，主路线 PlayMode 测试已覆盖
 
 ---
 
@@ -232,12 +232,11 @@ RCMap 中的 `primary` 和 `alternate_1` 是两条对称的最短参考解，不
 - `level-map-schema.md`
   - RCMap 1.1 的坐标、地形、出生点、终点和标准解描述规则。
 
-### 当前实现缺口
+### 尚待人工验收
 
 - `SceneSwitcher` 已能拒绝错误朝向，但尚未提供明确的不匹配反馈。
 - `SceneSwitcher` 已有 2 秒停留计时，但尚未提供可读的充能进度反馈。
-- `Chapter1_Scene1.unity` 尚未按本 GDD 的 RCMap 重建。
-- 场景重建时需要确认符文视觉与 `runeLocalAxis` 一致。
+- 需要确认符文视觉与 `runeLocalAxis` 一致。
 
 ## 9. 可调参数
 
