@@ -170,6 +170,13 @@ public class Chapter1CompletionTests
         Assert.AreEqual($"Chapter1_Scene{level}", SceneManager.GetActiveScene().name);
         Assert.IsNotNull(Object.FindAnyObjectByType<Player>());
         Assert.IsNotNull(Object.FindAnyObjectByType<SceneSwitcher>());
+
+        // Skip straight to the ripple entry animation's end state: primary-route tests
+        // drive the player via direct TryMove calls (bypassing Update()'s input lock), so
+        // they'd otherwise start moving while terrain colliders are still mid pop-in.
+        LevelEntryAnimator entryAnimator = Object.FindAnyObjectByType<LevelEntryAnimator>();
+        Assert.IsNotNull(entryAnimator);
+        entryAnimator.SkipToComplete();
     }
 
     private static IEnumerator MoveMany(Player player, params Vector3[] directions)

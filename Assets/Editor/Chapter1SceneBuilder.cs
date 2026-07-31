@@ -13,7 +13,7 @@ public static class Chapter1SceneBuilder
     private const string GoalPrefabPath = "Assets/Prefabs/SceneSwitcher.prefab";
     private const string BoxPrefabPath = "Assets/Prefabs/PushableBlock.prefab";
 
-    private static Transform terrainRoot;
+    private static Transform levelRoot;
     private static GameObject terrainSeed;
 
     [MenuItem("Tools/RollingCube/Rebuild Chapter 1/Level 1")]
@@ -80,13 +80,14 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(1, -5, 1, -1, 1);
         HashSet<string> cells = new HashSet<string>();
 
-        for (int x = -5; x <= 1; x++) AddTile(cells, terrainRoot, x, 0, 0f);
+        for (int x = -5; x <= 1; x++) AddTile(cells, levelRoot, x, 0, 0f);
         for (int x = -1; x <= 1; x++)
         for (int z = -1; z <= 1; z++)
-            AddTile(cells, terrainRoot, x, z, 0f);
+            AddTile(cells, levelRoot, x, z, 0f);
 
-        AddPlayer(-5, 0, 0f);
-        AddGoal(0, 0, 0f);
+        Player player = AddPlayer(-5, 0, 0f);
+        AddGoal(0, 0, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 1);
     }
 
@@ -95,13 +96,14 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(2, -4, 2, -1, 1);
         HashSet<string> cells = new HashSet<string>();
 
-        for (int x = -4; x <= -2; x++) AddTile(cells, terrainRoot, x, 0, 0.5f);
+        for (int x = -4; x <= -2; x++) AddTile(cells, levelRoot, x, 0, 0.5f);
         for (int x = -1; x <= 2; x++)
         for (int z = -1; z <= 1; z++)
-            AddTile(cells, terrainRoot, x, z, 0f);
+            AddTile(cells, levelRoot, x, z, 0f);
 
-        AddPlayer(-4, 0, 0.5f);
-        AddGoal(1, 0, 0f);
+        Player player = AddPlayer(-4, 0, 0.5f);
+        AddGoal(1, 0, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 2);
     }
 
@@ -110,17 +112,18 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(3, -4, 5, -1, 1);
         HashSet<string> cells = new HashSet<string>();
 
-        AddRect(cells, terrainRoot, -4, -1, -1, 1, 0f);
-        AddRect(cells, terrainRoot, 2, 5, -1, 1, 0f);
+        AddRect(cells, levelRoot, -4, -1, -1, 1, 0f);
+        AddRect(cells, levelRoot, 2, 5, -1, 1, 0f);
 
         Elevator west = AddElevator("bridge_west", 0, 0, -1f, new Vector3(0f, 1f, 0f),
-            false, false, false, 2f, 3f, terrainRoot);
+            false, false, false, 2f, 3f, levelRoot);
         Elevator east = AddElevator("bridge_east", 1, 0, -1f, new Vector3(0f, 1f, 0f),
-            false, false, false, 2f, 3f, terrainRoot);
-        AddSwitch("bridge_switch", -2, 1, 0f, 1f, new[] { west, east }, terrainRoot);
+            false, false, false, 2f, 3f, levelRoot);
+        AddSwitch("bridge_switch", -2, 1, 0f, 1f, new[] { west, east }, levelRoot);
 
-        AddPlayer(-4, 0, 0f);
-        AddGoal(3, 0, 0f);
+        Player player = AddPlayer(-4, 0, 0f);
+        AddGoal(3, 0, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 3);
     }
 
@@ -129,13 +132,14 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(4, -4, 6, -1, 1);
         HashSet<string> cells = new HashSet<string>();
 
-        AddRect(cells, terrainRoot, -4, -1, -1, 1, 0f);
-        AddRect(cells, terrainRoot, 3, 6, -1, 1, 0f);
+        AddRect(cells, levelRoot, -4, -1, -1, 1, 0f);
+        AddRect(cells, levelRoot, 3, 6, -1, 1, 0f);
         AddElevator("carrier_platform", 0, 0, 0f, new Vector3(2f, 0f, 0f),
-            true, false, false, 2f, 3f, terrainRoot);
+            true, false, false, 2f, 3f, levelRoot);
 
-        AddPlayer(-4, 0, 0f);
-        AddGoal(4, 0, 0f);
+        Player player = AddPlayer(-4, 0, 0f);
+        AddGoal(4, 0, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 4);
     }
 
@@ -144,17 +148,18 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(5, -5, 8, -1, 1);
         HashSet<string> cells = new HashSet<string>();
 
-        AddRect(cells, terrainRoot, -5, -1, -1, 1, 0f);
-        AddRect(cells, terrainRoot, 3, 8, -1, 1, 0f);
+        AddRect(cells, levelRoot, -5, -1, -1, 1, 0f);
+        AddRect(cells, levelRoot, 3, 8, -1, 1, 0f);
 
         AddElevator("returning_platform", 0, 0, 0f, new Vector3(2f, 0f, 0f),
-            true, true, true, 2f, 3f, terrainRoot);
+            true, true, true, 2f, 3f, levelRoot);
         Elevator gate = AddMovingBlock("passage_gate", 3, 0, 0f, new Vector3(0f, -1f, 0f),
-            false, false, 2f, terrainRoot);
-        AddSwitch("prerequisite_switch", -3, 1, 0f, 1f, new[] { gate }, terrainRoot);
+            false, false, 2f, levelRoot);
+        AddSwitch("prerequisite_switch", -3, 1, 0f, 1f, new[] { gate }, levelRoot);
 
-        AddPlayer(-5, 0, 0f);
-        AddGoal(7, 0, 0f);
+        Player player = AddPlayer(-5, 0, 0f);
+        AddGoal(7, 0, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 5);
     }
 
@@ -163,16 +168,17 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(6, 0, 8, 0, 4);
         HashSet<string> cells = new HashSet<string>();
 
-        for (int x = 0; x <= 3; x++) AddTile(cells, terrainRoot, x, 0, 0f);
-        for (int x = 2; x <= 5; x++) AddTile(cells, terrainRoot, x, 1, 0f);
-        AddRect(cells, terrainRoot, 4, 8, 2, 4, 0f);
-        AddObstacle("hill_lower", 4, 0, 0f, terrainRoot);
-        AddObstacle("hill_upper", 6, 1, 0f, terrainRoot);
+        for (int x = 0; x <= 3; x++) AddTile(cells, levelRoot, x, 0, 0f);
+        for (int x = 2; x <= 5; x++) AddTile(cells, levelRoot, x, 1, 0f);
+        AddRect(cells, levelRoot, 4, 8, 2, 4, 0f);
+        AddObstacle("hill_lower", 4, 0, 0f, levelRoot);
+        AddObstacle("hill_upper", 6, 1, 0f, levelRoot);
 
-        AddPlayer(0, 0, 0f);
-        AddBox("lower_box", 2, 0, 0f);
-        AddBox("upper_box", 4, 1, 0f);
-        AddGoal(6, 3, 0f);
+        Player player = AddPlayer(0, 0, 0f);
+        AddBox("lower_box", 2, 0, 0f, levelRoot);
+        AddBox("upper_box", 4, 1, 0f, levelRoot);
+        AddGoal(6, 3, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 6);
     }
 
@@ -181,16 +187,17 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(7, 0, 7, 0, 6);
         HashSet<string> cells = new HashSet<string>();
 
-        for (int x = 0; x <= 2; x++) AddTile(cells, terrainRoot, x, 0, 0f);
-        for (int z = 0; z <= 2; z++) AddTile(cells, terrainRoot, 4, z, 0f);
-        AddRect(cells, terrainRoot, 3, 7, 4, 6, 0f);
-        CreateTerrainInstance("ditch_horizontal_floor", 3, 0, -1f, terrainRoot);
-        CreateTerrainInstance("ditch_vertical_floor", 4, 3, -1f, terrainRoot);
+        for (int x = 0; x <= 2; x++) AddTile(cells, levelRoot, x, 0, 0f);
+        for (int z = 0; z <= 2; z++) AddTile(cells, levelRoot, 4, z, 0f);
+        AddRect(cells, levelRoot, 3, 7, 4, 6, 0f);
+        CreateTerrainInstance("ditch_horizontal_floor", 3, 0, -1f, levelRoot);
+        CreateTerrainInstance("ditch_vertical_floor", 4, 3, -1f, levelRoot);
 
-        AddPlayer(0, 0, 0f);
-        AddBox("horizontal_box", 2, 0, 0f);
-        AddBox("vertical_box", 4, 2, 0f);
-        AddGoal(6, 5, 0f);
+        Player player = AddPlayer(0, 0, 0f);
+        AddBox("horizontal_box", 2, 0, 0f, levelRoot);
+        AddBox("vertical_box", 4, 2, 0f, levelRoot);
+        AddGoal(6, 5, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 7);
     }
 
@@ -199,25 +206,26 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(8, 0, 9, 0, 3);
         HashSet<string> cells = new HashSet<string>();
 
-        for (int x = 0; x <= 3; x++) AddTile(cells, terrainRoot, x, 3, 0f);
-        for (int x = 1; x <= 3; x++) AddTile(cells, terrainRoot, x, 2, 0f);
-        AddTile(cells, terrainRoot, 1, 1, 0f);
-        AddTile(cells, terrainRoot, 3, 1, 0f);
-        AddTile(cells, terrainRoot, 3, 0, 0f);
-        AddRect(cells, terrainRoot, 5, 9, 0, 2, 0f);
+        for (int x = 0; x <= 3; x++) AddTile(cells, levelRoot, x, 3, 0f);
+        for (int x = 1; x <= 3; x++) AddTile(cells, levelRoot, x, 2, 0f);
+        AddTile(cells, levelRoot, 1, 1, 0f);
+        AddTile(cells, levelRoot, 3, 1, 0f);
+        AddTile(cells, levelRoot, 3, 0, 0f);
+        AddRect(cells, levelRoot, 5, 9, 0, 2, 0f);
 
-        AddObstacle("box_limit_north_west", 0, 2, 0f, terrainRoot);
-        AddObstacle("box_limit_west", 0, 1, 0f, terrainRoot);
-        AddObstacle("box_limit_east", 2, 1, 0f, terrainRoot);
-        AddObstacle("box_limit_south", 1, 0, 0f, terrainRoot);
+        AddObstacle("box_limit_north_west", 0, 2, 0f, levelRoot);
+        AddObstacle("box_limit_west", 0, 1, 0f, levelRoot);
+        AddObstacle("box_limit_east", 2, 1, 0f, levelRoot);
+        AddObstacle("box_limit_south", 1, 0, 0f, levelRoot);
 
         Elevator bridge = AddElevator("reversible_bridge", 4, 1, -1f, new Vector3(0f, 1f, 0f),
-            false, true, false, 1f, 3f, terrainRoot);
-        AddSwitch("bridge_pressure_plate", 1, 1, 0f, 1f, new[] { bridge }, terrainRoot);
+            false, true, false, 1f, 3f, levelRoot);
+        AddSwitch("bridge_pressure_plate", 1, 1, 0f, 1f, new[] { bridge }, levelRoot);
 
-        AddPlayer(0, 3, 0f);
-        AddBox("holding_box", 1, 2, 0f);
-        AddGoal(7, 1, 0f);
+        Player player = AddPlayer(0, 3, 0f);
+        AddBox("holding_box", 1, 2, 0f, levelRoot);
+        AddGoal(7, 1, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 8);
     }
 
@@ -226,19 +234,20 @@ public static class Chapter1SceneBuilder
         Scene scene = CreateScene(9, 0, 11, 0, 3);
         HashSet<string> cells = new HashSet<string>();
 
-        for (int x = 0; x <= 3; x++) AddTile(cells, terrainRoot, x, 0, 0f);
-        AddTile(cells, terrainRoot, 3, 1, 0f);
-        for (int x = 3; x <= 6; x++) AddTile(cells, terrainRoot, x, 2, 0f);
-        AddRect(cells, terrainRoot, 8, 11, 1, 3, 0f);
-        CreateTerrainInstance("hidden_switch_pit_floor", 4, 0, -1f, terrainRoot);
+        for (int x = 0; x <= 3; x++) AddTile(cells, levelRoot, x, 0, 0f);
+        AddTile(cells, levelRoot, 3, 1, 0f);
+        for (int x = 3; x <= 6; x++) AddTile(cells, levelRoot, x, 2, 0f);
+        AddRect(cells, levelRoot, 8, 11, 1, 3, 0f);
+        CreateTerrainInstance("hidden_switch_pit_floor", 4, 0, -1f, levelRoot);
 
         Elevator bridge = AddElevator("chapter_exit_bridge", 7, 2, -1f, new Vector3(0f, 1f, 0f),
-            false, false, false, 1f, 3f, terrainRoot);
-        AddSwitch("hidden_switch", 4, 0, -1f, 0.4f, new[] { bridge }, terrainRoot);
+            false, false, false, 1f, 3f, levelRoot);
+        AddSwitch("hidden_switch", 4, 0, -1f, 0.4f, new[] { bridge }, levelRoot);
 
-        AddPlayer(0, 0, 0f);
-        AddBox("key_box", 2, 0, 0f);
-        AddGoal(10, 2, 0f);
+        Player player = AddPlayer(0, 0, 0f);
+        AddBox("key_box", 2, 0, 0f, levelRoot);
+        AddGoal(10, 2, 0f, levelRoot);
+        AttachLevelEntryAnimator(player);
         Save(scene, 9);
     }
 
@@ -246,29 +255,33 @@ public static class Chapter1SceneBuilder
     {
         Scene scene = EditorSceneManager.OpenScene(TemplateScenePath, OpenSceneMode.Single);
         RemoveTemplateGameplayObjects(scene);
-        PrepareTerrainRoot(scene);
+        PrepareLevelRoot(scene);
         SetupEnvironment(level, minX, maxX, minZ, maxZ);
         return scene;
     }
 
-    private static void PrepareTerrainRoot(Scene scene)
+    private static void PrepareLevelRoot(Scene scene)
     {
-        terrainRoot = null;
+        levelRoot = null;
         foreach (GameObject root in scene.GetRootGameObjects())
         {
             if (root.name == "Terrain")
             {
-                terrainRoot = root.transform;
+                levelRoot = root.transform;
                 break;
             }
         }
 
-        if (terrainRoot == null)
+        if (levelRoot == null)
             throw new System.InvalidOperationException(
                 $"{TemplateScenePath} must contain a root GameObject named 'Terrain'.");
 
+        // This root now also parents boxes, the goal, and the LevelEntryAnimator that
+        // ripples them all in, so it's renamed once the scene is actually built.
+        levelRoot.name = "LevelRoot";
+
         terrainSeed = null;
-        foreach (Transform child in terrainRoot)
+        foreach (Transform child in levelRoot)
         {
             if (PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(child.gameObject) == TerrainPrefabPath)
             {
@@ -331,7 +344,7 @@ public static class Chapter1SceneBuilder
             Object.DestroyImmediate(terrainSeed);
             terrainSeed = null;
         }
-        terrainRoot = null;
+        levelRoot = null;
 
         EditorSceneManager.MarkSceneDirty(scene);
         string path = $"{SceneFolder}/Chapter1_Scene{level}.unity";
@@ -367,10 +380,11 @@ public static class Chapter1SceneBuilder
     private static GameObject CreateTerrainInstance(string name, int x, int z, float surfaceY,
         Transform parent)
     {
+        // Not marked isStatic: LevelEntryAnimator scales these at runtime, and static
+        // batching bakes combined meshes that ignore per-instance transform changes.
         GameObject tile = DuplicateSeed(name, parent);
         tile.transform.position = new Vector3(x, surfaceY - 0.5f, z);
         tile.transform.rotation = Quaternion.identity;
-        tile.isStatic = true;
         return tile;
     }
 
@@ -379,7 +393,6 @@ public static class Chapter1SceneBuilder
         GameObject obstacle = DuplicateSeed(name, parent);
         obstacle.transform.position = new Vector3(x, surfaceY + 0.5f, z);
         obstacle.transform.rotation = Quaternion.identity;
-        obstacle.isStatic = true;
     }
 
     private static Player AddPlayer(int x, int z, float surfaceY)
@@ -392,21 +405,33 @@ public static class Chapter1SceneBuilder
         return playerObject.GetComponent<Player>();
     }
 
-    private static SceneSwitcher AddGoal(int x, int z, float surfaceY)
+    // Drives the level's ripple entry animation: LevelRoot's children (terrain, obstacles,
+    // mechanisms, boxes, the goal) start scaled to zero and pop in outward from the player.
+    private static void AttachLevelEntryAnimator(Player player)
+    {
+        LevelEntryAnimator animator = levelRoot.gameObject.AddComponent<LevelEntryAnimator>();
+        SerializedObject serialized = new SerializedObject(animator);
+        serialized.FindProperty("player").objectReferenceValue = player;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static SceneSwitcher AddGoal(int x, int z, float surfaceY, Transform parent)
     {
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(GoalPrefabPath);
         GameObject goalObject = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
         goalObject.name = "SceneSwitcher";
+        goalObject.transform.SetParent(parent);
         goalObject.transform.position = new Vector3(x, surfaceY + 0.1f, z);
         goalObject.transform.rotation = Quaternion.identity;
         return goalObject.GetComponent<SceneSwitcher>();
     }
 
-    private static PushableBlock AddBox(string name, int x, int z, float surfaceY)
+    private static PushableBlock AddBox(string name, int x, int z, float surfaceY, Transform parent)
     {
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(BoxPrefabPath);
         GameObject boxObject = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
         boxObject.name = name;
+        boxObject.transform.SetParent(parent);
         boxObject.transform.position = new Vector3(x, surfaceY + 0.5f, z);
         boxObject.transform.rotation = Quaternion.identity;
         return boxObject.GetComponent<PushableBlock>();
