@@ -15,6 +15,7 @@ public class StepCounter : MonoBehaviour
 
     private Text stepText;
     private Text deadText;
+    private GameObject canvasInstance;
     private int stepCount;
     private int deathCount;
 
@@ -31,7 +32,7 @@ public class StepCounter : MonoBehaviour
     void Awake()
     {
         GameObject canvasPrefab = Resources.Load<GameObject>(CanvasPrefabResourcePath);
-        GameObject canvasInstance = Instantiate(canvasPrefab);
+        canvasInstance = Instantiate(canvasPrefab);
         DontDestroyOnLoad(canvasInstance);
         Text[] texts = canvasInstance.GetComponentsInChildren<Text>(true);
         foreach (Text text in texts)
@@ -46,9 +47,23 @@ public class StepCounter : MonoBehaviour
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        if (mode == LoadSceneMode.Single)
+            BeginLevel();
+    }
+
+    /// <summary>Clears the counters when GameFlow begins a fresh level.</summary>
+    public void BeginLevel()
+    {
         stepCount = 0;
         deathCount = 0;
         UpdateText();
+    }
+
+    /// <summary>Shows the gameplay HUD only while a run is active.</summary>
+    public void SetVisible(bool visible)
+    {
+        if (canvasInstance != null)
+            canvasInstance.SetActive(visible);
     }
 
     // Called by Player.cs after each successful roll completes.

@@ -46,9 +46,11 @@ public class PauseMenu : MonoBehaviour
         Keyboard kb = Keyboard.current;
         if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
 
-        // The start screen (see MainMenu.cs) owns Esc for its own back
-        // navigation; don't compete with it for the same keypress.
-        if (SceneManager.GetActiveScene().name == MainMenuSceneName) return;
+        GameFlowController flow = GameFlowController.Instance;
+        if (flow != null && !flow.IsPlaying && flow.State != GameFlowState.Paused) return;
+
+        // Standalone scenes retain the original scene-name fallback.
+        if (flow == null && SceneManager.GetActiveScene().name == MainMenuSceneName) return;
 
         if (IsPaused) Resume();
         else Pause();
@@ -56,26 +58,52 @@ public class PauseMenu : MonoBehaviour
 
     private void Pause()
     {
+        if (GameFlowController.Instance != null &&
+            !GameFlowController.Instance.PauseGameplay())
+            return;
+
         IsPaused = true;
-        Time.timeScale = 0f;
+        if (GameFlowController.Instance == null)
+            Time.timeScale = 0f;
         panel.SetActive(true);
     }
 
     private void Resume()
     {
+        if (GameFlowController.Instance != null &&
+            !GameFlowController.Instance.ResumeGameplay())
+            return;
+
         IsPaused = false;
-        Time.timeScale = 1f;
+        if (GameFlowController.Instance == null)
+            Time.timeScale = 1f;
         panel.SetActive(false);
     }
 
     private void ResetLevel()
     {
+        if (GameFlowController.Instance != null)
+        {
+            IsPaused = false;
+            panel.SetActive(false);
+            GameFlowController.Instance.ResetCurrentLevel();
+            return;
+        }
+
         Resume();
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     private void GoToMainMenu()
     {
+        if (GameFlowController.Instance != null)
+        {
+            IsPaused = false;
+            panel.SetActive(false);
+            GameFlowController.Instance.ReturnToMenu();
+            return;
+        }
+
         Resume();
         SceneManager.LoadScene(MainMenuSceneName);
     }

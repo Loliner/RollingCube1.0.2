@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d3b9613d0addc2468d5bff621f33b34, type: 3}
+  m_Name: LevelCatalog
+  m_EditorClassIdentifier: RollingCube::LevelCatalog
+  chapters:
+  - chapterNumber: 1
+    displayName: "\u7B2C\u4E00\u7AE0"
+    previewImage: {fileID: 0}
+    levels:
+    - levelId: Chapter1_Scene1
+      chapterNumber: 1
+      levelNumber: 1
+      displayName: "\u7B26\u6587\u7EC8\u70B9"
+      sceneName: Chapter1_Scene1
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene2
+      chapterNumber: 1
+      levelNumber: 2
+      displayName: "\u843D\u5DEE\u4E4B\u8DEF"
+      sceneName: Chapter1_Scene2
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene3
+      chapterNumber: 1
+      levelNumber: 3
+      displayName: "\u53CC\u6865\u673A\u5173"
+      sceneName: Chapter1_Scene3
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene4
+      chapterNumber: 1
+      levelNumber: 4
+      displayName: "\u8F7D\u8FD0\u5E73\u53F0"
+      sceneName: Chapter1_Scene4
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene5
+      chapterNumber: 1
+      levelNumber: 5
+      displayName: "\u8FD4\u56DE\u5E73\u53F0"
+      sceneName: Chapter1_Scene5
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene6
+      chapterNumber: 1
+      levelNumber: 6
+      displayName: "\u53CC\u7BB1\u63A8\u79FB"
+      sceneName: Chapter1_Scene6
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene7
+      chapterNumber: 1
+      levelNumber: 7
+      displayName: "\u5760\u843D\u4E4B\u7BB1"
+      sceneName: Chapter1_Scene7
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene8
+      chapterNumber: 1
+      levelNumber: 8
+      displayName: "\u538B\u529B\u6865"
+      sceneName: Chapter1_Scene8
+      previewImage: {fileID: 0}
+    - levelId: Chapter1_Scene9
+      chapterNumber: 1
+      levelNumber: 9
+      displayName: "\u9690\u85CF\u5F00\u5173"
+      sceneName: Chapter1_Scene9
+      previewImage: {fileID: 0}

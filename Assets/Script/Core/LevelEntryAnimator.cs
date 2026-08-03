@@ -1,96 +1,208 @@
+using System;
 using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
 
-// Plays the level's "ripple" entry: every direct child of this transform (terrain,
-// obstacles, mechanisms, boxes, the goal) starts scaled to zero and pops in with a
-// distance-staggered DOTween punch, rippling outward from the player's spawn position
-// like an expanding wave. Player input stays locked (BeginExternalControl) for the whole
-// sequence, since a tile's collider is only full-sized once its own pop-in tween
-// completes — letting the player move earlier could roll them onto ground that hasn't
-// materialized yet.
-public class LevelEntryAnimator : MonoBehaviour
+// Bidirectional level ripple. Every eligible direct child of LevelRoot is one
+// transition unit, so terrain tiles ripple independently while a complex
+// mechanism and its nested parts remain a single visual object.
+public sealed class LevelEntryAnimator : MonoBehaviour
 {
     [SerializeField] private Player player;
-    [SerializeField] private float secondsPerGridUnit = 0.1f; // ripple speed: delay added per world unit of distance from the player
-    [SerializeField] private float popDuration = 0.35f; // duration of each object's own scale-in tween
-    [SerializeField] private Ease popEase = Ease.OutBack;
+    [SerializeField] private float secondsPerGridUnit = 0.1f;
+    [SerializeField] private float enterDuration = 0.35f;
+    [SerializeField] private float exitDuration = 0.35f;
+    [SerializeField] private Ease enterEase = Ease.OutBack;
+    [SerializeField] private Ease exitEase = Ease.InBack;
 
     private struct Target
     {
-        public Transform transform;
-        public Vector3 originalScale;
-        public float delay;
+        public Transform Transform;
+        public Vector3 OriginalScale;
     }
 
-    private List<Target> targets;
-    private Tween unlockCall;
-    private bool skipped;
+    private readonly List<Target> targets = new List<Target>();
+    private Sequence activeSequence;
+    private bool captured;
 
-    void Start()
+    public bool IsAnimating => activeSequence != null && activeSequence.IsActive() && activeSequence.IsPlaying();
+
+    /// <summary>Returns the real-time duration of a ripple from the supplied origin.</summary>
+    public float GetTransitionDuration(
+        Vector3 origin,
+        bool entering,
+        float minimumTotalDuration = 0f)
     {
-        if (player == null)
+        CaptureTargets();
+        float itemDuration = entering ? enterDuration : exitDuration;
+        float delayScale = GetDelayScale(origin, itemDuration, minimumTotalDuration);
+        return GetMaximumRawDelay(origin) * delayScale + itemDuration;
+    }
+
+    /// <summary>Injects the player that owns the ripple origin.</summary>
+    public void Configure(Player configuredPlayer)
+    {
+        player = configuredPlayer;
+        CaptureTargets();
+    }
+
+    /// <summary>
+    /// Hides all transition units before the first rendered frame of an
+    /// additively loaded scene.
+    /// </summary>
+    public void PrepareEnterState()
+    {
+        CaptureTargets();
+        KillActiveSequence();
+        foreach (Target target in targets)
+            if (target.Transform != null)
+                target.Transform.localScale = Vector3.zero;
+    }
+
+    /// <summary>Plays the distance-staggered scale-in ripple using unscaled time.</summary>
+    public void PlayEnter(Vector3 origin, Action onComplete = null)
+    {
+        CaptureTargets();
+        KillActiveSequence();
+
+        activeSequence = DOTween.Sequence().SetUpdate(true);
+        foreach (Target target in targets)
         {
-            Debug.LogWarning("LevelEntryAnimator has no player reference; skipping ripple intro.", this);
-            return;
+            if (target.Transform == null) continue;
+
+            float delay = FlatDistance(target.Transform.position, origin) * secondsPerGridUnit;
+            target.Transform.localScale = Vector3.zero;
+            Tween tween = target.Transform
+                .DOScale(target.OriginalScale, enterDuration)
+                .SetEase(enterEase)
+                .SetUpdate(true);
+            activeSequence.Insert(delay, tween);
         }
 
+        activeSequence.OnComplete(() =>
+        {
+            activeSequence = null;
+            onComplete?.Invoke();
+        });
+    }
+
+    /// <summary>Plays the distance-staggered scale-out ripple using unscaled time.</summary>
+    public void PlayExit(Vector3 origin, Action onComplete = null)
+    {
+        PlayExit(origin, 0f, onComplete);
+    }
+
+    /// <summary>
+    /// Plays the exit ripple and, when requested, stretches only the
+    /// distance delays so the overall ripple lasts at least the supplied
+    /// duration. Individual easing duration remains unchanged.
+    /// </summary>
+    public void PlayExit(
+        Vector3 origin,
+        float minimumTotalDuration,
+        Action onComplete = null)
+    {
         CaptureTargets();
-        Play();
+        KillActiveSequence();
+        float delayScale = GetDelayScale(origin, exitDuration, minimumTotalDuration);
+
+        activeSequence = DOTween.Sequence().SetUpdate(true);
+        foreach (Target target in targets)
+        {
+            if (target.Transform == null) continue;
+
+            float delay =
+                FlatDistance(target.Transform.position, origin) *
+                secondsPerGridUnit *
+                delayScale;
+            target.Transform.localScale = target.OriginalScale;
+            Tween tween = target.Transform
+                .DOScale(Vector3.zero, exitDuration)
+                .SetEase(exitEase)
+                .SetUpdate(true);
+            activeSequence.Insert(delay, tween);
+        }
+
+        activeSequence.OnComplete(() =>
+        {
+            activeSequence = null;
+            onComplete?.Invoke();
+        });
+    }
+
+    /// <summary>Immediately restores every transition target to its authored scale.</summary>
+    public void SkipToComplete()
+    {
+        CaptureTargets();
+        KillActiveSequence();
+        foreach (Target target in targets)
+            if (target.Transform != null)
+                target.Transform.localScale = target.OriginalScale;
+
+        if (player != null && player.IsExternallyControlled)
+            player.EndExternalControl();
     }
 
     private void CaptureTargets()
     {
-        targets = new List<Target>(transform.childCount);
-        Vector3 origin = player.transform.position;
+        if (captured) return;
 
+        captured = true;
+        targets.Clear();
         foreach (Transform child in transform)
         {
-            Vector3 flatOffset = child.position - origin;
-            flatOffset.y = 0f;
-            float delay = flatOffset.magnitude * secondsPerGridUnit;
-
-            targets.Add(new Target { transform = child, originalScale = child.localScale, delay = delay });
-            child.localScale = Vector3.zero;
+            if (child.GetComponent<LevelTransitionExclude>() != null) continue;
+            targets.Add(new Target
+            {
+                Transform = child,
+                OriginalScale = child.localScale
+            });
         }
     }
 
-    private void Play()
+    private void KillActiveSequence()
     {
-        player.BeginExternalControl();
+        if (activeSequence == null) return;
+        activeSequence.Kill();
+        activeSequence = null;
+    }
 
-        float maxDelay = 0f;
+    private float GetDelayScale(
+        Vector3 origin,
+        float itemDuration,
+        float minimumTotalDuration)
+    {
+        float maximumRawDelay = GetMaximumRawDelay(origin);
+        float requiredDelay = Mathf.Max(0f, minimumTotalDuration - itemDuration);
+        if (maximumRawDelay <= Mathf.Epsilon || requiredDelay <= maximumRawDelay)
+            return 1f;
+
+        return requiredDelay / maximumRawDelay;
+    }
+
+    private float GetMaximumRawDelay(Vector3 origin)
+    {
+        float maximumDelay = 0f;
         foreach (Target target in targets)
         {
-            target.transform.DOScale(target.originalScale, popDuration).SetDelay(target.delay).SetEase(popEase);
-            if (target.delay > maxDelay) maxDelay = target.delay;
+            if (target.Transform == null) continue;
+            maximumDelay = Mathf.Max(
+                maximumDelay,
+                FlatDistance(target.Transform.position, origin) * secondsPerGridUnit);
         }
 
-        unlockCall = DOVirtual.DelayedCall(maxDelay + popDuration, Unlock);
+        return maximumDelay;
     }
 
-    private void Unlock()
+    private static float FlatDistance(Vector3 a, Vector3 b)
     {
-        if (skipped) return;
-        player.EndExternalControl();
+        Vector3 offset = a - b;
+        offset.y = 0f;
+        return offset.magnitude;
     }
 
-    // Instantly finishes the ripple: every target snaps to its final scale and player
-    // control is handed back right away. Called by automated tests so they don't have to
-    // sit through the real animation, and so physics queries see fully-sized colliders.
-    public void SkipToComplete()
+    void OnDestroy()
     {
-        if (targets == null || skipped) return;
-        skipped = true;
-
-        unlockCall?.Kill();
-        foreach (Target target in targets)
-        {
-            DOTween.Kill(target.transform);
-            target.transform.localScale = target.originalScale;
-        }
-
-        if (player.IsExternallyControlled)
-            player.EndExternalControl();
+        KillActiveSequence();
     }
 }

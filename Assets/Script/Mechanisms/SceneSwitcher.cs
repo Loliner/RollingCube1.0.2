@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -33,12 +34,35 @@ public class SceneSwitcher : MonoBehaviour
 
         isTriggered = false;
 
-        string currentSceneName = SceneManager.GetActiveScene().name;
-        Match match = Regex.Match(currentSceneName, @"^Chapter(\d+)_Scene(\d+)$");
-        if (!match.Success) return;
+        LevelContext context = GetComponentInParent<LevelContext>();
+        if (GameFlowController.Instance != null)
+        {
+            if (context == null)
+            {
+                Debug.LogError("SceneSwitcher is not parented under a LevelContext.", this);
+                return;
+            }
 
-        int chapter = int.Parse(match.Groups[1].Value);
-        int scene = int.Parse(match.Groups[2].Value);
+            GameFlowController.Instance.CompleteLevel(context);
+            return;
+        }
+
+        string currentSceneName = gameObject.scene.name;
+        int chapter;
+        int scene;
+        if (context != null)
+        {
+            chapter = context.ChapterNumber;
+            scene = context.LevelNumber;
+        }
+        else
+        {
+            Match match = Regex.Match(currentSceneName, @"^Chapter(\d+)_Scene(\d+)$");
+            if (!match.Success) return;
+
+            chapter = int.Parse(match.Groups[1].Value);
+            scene = int.Parse(match.Groups[2].Value);
+        }
 
         LevelProgress.Instance.RegisterCompletion(chapter, scene);
 
@@ -54,12 +78,26 @@ public class SceneSwitcher : MonoBehaviour
             target = nextChapterFirst;
         else
         {
-            // TODO: last level of the game — should return to a chapter-select screen once one exists
             Debug.LogWarning($"SceneSwitcher: neither '{nextInChapter}' nor '{nextChapterFirst}' is registered in Build Settings (tried from '{currentSceneName}').");
             return;
         }
 
+        // Standalone flow replaces the whole scene. Kill scene-owned tweens
+        // before their Transform targets are destroyed by the single load.
+        DOTween.KillAll();
+        SceneManager.sceneLoaded -= KillStandaloneUnloadTweens;
+        SceneManager.sceneLoaded += KillStandaloneUnloadTweens;
         SceneManager.LoadScene(target);
+    }
+
+    private static void KillStandaloneUnloadTweens(Scene loadedScene, LoadSceneMode mode)
+    {
+        SceneManager.sceneLoaded -= KillStandaloneUnloadTweens;
+        // Unload callbacks from the previous scene can enqueue reset tweens
+        // after the pre-load KillAll. sceneLoaded runs before the new
+        // LevelContext.Start creates its entry ripple, so this second cleanup
+        // removes only stale scene-owned work.
+        DOTween.KillAll();
     }
 
     void OnTriggerExit(Collider other)

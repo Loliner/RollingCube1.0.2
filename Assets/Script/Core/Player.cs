@@ -28,13 +28,16 @@ public class Player : MonoBehaviour, IExternallyControllable
     private bool isRolling; // true while a roll or shake animation is playing
     private bool isFalling; // true once gravity has taken over
     private bool isExternallyControlled; // true while a mechanism (e.g. conveyor) owns movement
+    private int externalControlCount;
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
+    private Vector3 authoredScale;
 
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
         rb.isKinematic = true;
+        authoredScale = transform.localScale;
 
         transform.position = SnapToGrid(transform.position);
         spawnPosition = transform.position;
@@ -44,6 +47,12 @@ public class Player : MonoBehaviour, IExternallyControllable
     public Transform Transform => transform;
     public bool IsExternallyControlled => isExternallyControlled;
     public bool CanBeginExternalControl => !isRolling && !isFalling && !isExternallyControlled;
+    public bool IsReady => !isRolling && !isFalling && !isExternallyControlled;
+
+#if UNITY_INCLUDE_TESTS
+    /// <summary>Exposes the normal movement coroutine to PlayMode route tests.</summary>
+    public IEnumerator CreateMoveRoutineForTests(Vector3 direction) => TryMove(direction);
+#endif
 
     // Whether the rune-marked face currently points straight down. Rotation is
     // kept snapped to 90-degree increments (see AnimateRoll/SnapRotation), so
@@ -58,20 +67,57 @@ public class Player : MonoBehaviour, IExternallyControllable
     // directly; Update() stops polling input until EndExternalControl() is called.
     public void BeginExternalControl()
     {
-        isExternallyControlled = true;
+        externalControlCount++;
+        isExternallyControlled = externalControlCount > 0;
     }
 
     // Hands control back and re-derives grid alignment from wherever the
     // mechanism left the cube, so normal rolling resumes correctly.
     public void EndExternalControl()
     {
+        if (externalControlCount > 0)
+            externalControlCount--;
+
+        isExternallyControlled = externalControlCount > 0;
+        if (!isExternallyControlled)
+            transform.position = SnapToGrid(transform.position);
+    }
+
+    /// <summary>
+    /// Clears state owned by the previous level and establishes a new spawn for
+    /// the persistent player.
+    /// </summary>
+    public void PrepareForLevel(Vector3 position, Quaternion rotation, float newKillPlaneY)
+    {
+        StopAllCoroutines();
+        transform.DOKill();
+
+        isRolling = false;
+        isFalling = false;
+        externalControlCount = 0;
         isExternallyControlled = false;
-        transform.position = SnapToGrid(transform.position);
+
+        // Unity rejects velocity writes while a body is kinematic. Toggle it
+        // within this reset frame so any velocity from a previous fall is
+        // cleared before the next level can release the body again.
+        rb.isKinematic = false;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+
+        transform.position = SnapToGrid(position);
+        transform.rotation = SnapRotation(rotation);
+        transform.localScale = authoredScale;
+
+        spawnPosition = transform.position;
+        spawnRotation = transform.rotation;
+        killPlaneY = newKillPlaneY;
     }
 
     void Update()
     {
-        if (isRolling || isFalling || isExternallyControlled || PauseMenu.Instance.IsPaused) return;
+        if (isRolling || isFalling || isExternallyControlled ||
+            (PauseMenu.Instance != null && PauseMenu.Instance.IsPaused)) return;
 
         Keyboard kb = Keyboard.current;
         if (kb == null) return;
@@ -275,7 +321,7 @@ public class Player : MonoBehaviour, IExternallyControllable
                 transform.position = spawnPosition;
                 transform.rotation = spawnRotation;
 
-                transform.DOScale(Vector3.one, respawnScaleDuration)
+                transform.DOScale(authoredScale, respawnScaleDuration)
                     .SetEase(Ease.OutSine)
                     .OnComplete(() => isFalling = false);
             });

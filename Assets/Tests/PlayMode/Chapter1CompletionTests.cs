@@ -1,6 +1,5 @@
 using System.Collections;
 using System.IO;
-using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -8,15 +7,6 @@ using UnityEngine.TestTools;
 
 public class Chapter1CompletionTests
 {
-    private static readonly MethodInfo TryMoveMethod =
-        typeof(Player).GetMethod("TryMove", BindingFlags.Instance | BindingFlags.NonPublic);
-    private static readonly FieldInfo IsRollingField =
-        typeof(Player).GetField("isRolling", BindingFlags.Instance | BindingFlags.NonPublic);
-    private static readonly FieldInfo IsFallingField =
-        typeof(Player).GetField("isFalling", BindingFlags.Instance | BindingFlags.NonPublic);
-    private static readonly FieldInfo IsExternallyControlledField =
-        typeof(Player).GetField("isExternallyControlled", BindingFlags.Instance | BindingFlags.NonPublic);
-
     private string savePath;
     private bool saveExisted;
     private byte[] savedProgress;
@@ -57,11 +47,42 @@ public class Chapter1CompletionTests
     {
         yield return LoadLevel(2);
         Player player = Object.FindAnyObjectByType<Player>();
-        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.right);
-        yield return WaitForPlayerReady(player, 4f);
-        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.right,
-            Vector3.forward, Vector3.left, Vector3.back);
+        yield return MoveMany(player,
+            Vector3.right, Vector3.right, Vector3.back, Vector3.back,
+            Vector3.left, Vector3.left, Vector3.left, Vector3.left,
+            Vector3.right, Vector3.forward, Vector3.left, Vector3.back,
+            Vector3.left, Vector3.back);
         yield return ExpectTransition("Chapter1_Scene3");
+    }
+
+    [UnityTest]
+    public IEnumerator Level02_AlternateRouteCompletes()
+    {
+        yield return LoadLevel(2);
+        Player player = Object.FindAnyObjectByType<Player>();
+        yield return MoveMany(player,
+            Vector3.right, Vector3.back, Vector3.back,
+            Vector3.left, Vector3.left, Vector3.left,
+            Vector3.forward, Vector3.right, Vector3.back, Vector3.left,
+            Vector3.forward, Vector3.left, Vector3.back, Vector3.back);
+        yield return ExpectTransition("Chapter1_Scene3");
+    }
+
+    [UnityTest]
+    public IEnumerator Level02_DirectRouteDoesNotComplete()
+    {
+        yield return LoadLevel(2);
+        Player player = Object.FindAnyObjectByType<Player>();
+        yield return MoveMany(player,
+            Vector3.right, Vector3.right, Vector3.back, Vector3.back,
+            Vector3.left, Vector3.left, Vector3.left, Vector3.left,
+            Vector3.left, Vector3.back);
+
+        Assert.IsFalse(player.IsRuneFaceDown(),
+            "The unadjusted route should reach E with the rune facing the wrong direction.");
+        yield return new WaitForSeconds(2.3f);
+        Assert.AreEqual("Chapter1_Scene2", SceneManager.GetActiveScene().name,
+            "The unadjusted route must not complete Level 2.");
     }
 
     [UnityTest]
@@ -69,11 +90,54 @@ public class Chapter1CompletionTests
     {
         yield return LoadLevel(3);
         Player player = Object.FindAnyObjectByType<Player>();
-        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.forward);
+        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.back,
+            Vector3.back, Vector3.left);
         yield return new WaitForSeconds(3.2f);
-        yield return MoveMany(player, Vector3.right, Vector3.back, Vector3.right, Vector3.right,
-            Vector3.right, Vector3.right);
+        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.right,
+            Vector3.right, Vector3.right, Vector3.right, Vector3.back, Vector3.right,
+            Vector3.right, Vector3.right, Vector3.forward, Vector3.forward);
         yield return ExpectTransition("Chapter1_Scene4");
+    }
+
+    [UnityTest]
+    public IEnumerator Level03_AlternateRouteCompletes()
+    {
+        yield return LoadLevel(3);
+        Player player = Object.FindAnyObjectByType<Player>();
+        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.back,
+            Vector3.back, Vector3.left);
+        yield return new WaitForSeconds(3.2f);
+        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.right,
+            Vector3.right, Vector3.right, Vector3.forward, Vector3.forward, Vector3.right,
+            Vector3.back, Vector3.right, Vector3.right, Vector3.right);
+        yield return ExpectTransition("Chapter1_Scene4");
+    }
+
+    [UnityTest]
+    public IEnumerator Level03_BridgeSegmentsRiseInOrder()
+    {
+        yield return LoadLevel(3);
+        Player player = Object.FindAnyObjectByType<Player>();
+        GameObject west = GameObject.Find("bridge_west");
+        GameObject east = GameObject.Find("bridge_east");
+        Assert.IsNotNull(west);
+        Assert.IsNotNull(east);
+
+        float westStartY = west.transform.position.y;
+        float eastStartY = east.transform.position.y;
+
+        yield return MoveMany(player, Vector3.right, Vector3.right, Vector3.back,
+            Vector3.back, Vector3.left);
+        yield return new WaitForSeconds(1.2f);
+
+        Assert.Greater(west.transform.position.y, westStartY + 0.005f,
+            "The west bridge segment should begin rising first.");
+        Assert.That(east.transform.position.y, Is.EqualTo(eastStartY).Within(0.005f),
+            "The east bridge segment must remain down during the stagger interval.");
+
+        yield return new WaitForSeconds(0.55f);
+        Assert.Greater(east.transform.position.y, eastStartY + 0.005f,
+            "The east bridge segment should begin after its configured delay.");
     }
 
     [UnityTest]
@@ -187,8 +251,7 @@ public class Chapter1CompletionTests
 
     private static IEnumerator Move(Player player, Vector3 direction)
     {
-        Assert.IsNotNull(TryMoveMethod);
-        IEnumerator movement = (IEnumerator)TryMoveMethod.Invoke(player, new object[] { direction });
+        IEnumerator movement = player.CreateMoveRoutineForTests(direction);
         player.StartCoroutine(movement);
         yield return null;
         yield return WaitForPlayerReady(player, 6f);
@@ -206,9 +269,7 @@ public class Chapter1CompletionTests
 
     private static bool IsBusy(Player player)
     {
-        return (bool)IsRollingField.GetValue(player)
-            || (bool)IsFallingField.GetValue(player)
-            || (bool)IsExternallyControlledField.GetValue(player);
+        return !player.IsReady;
     }
 
     private static IEnumerator WaitForBox(string name)

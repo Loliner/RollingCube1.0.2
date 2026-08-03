@@ -15,6 +15,8 @@ public static class Chapter1SceneBuilder
 
     private static Transform levelRoot;
     private static GameObject terrainSeed;
+    private static GameObject standaloneRig;
+    private static Camera sceneCamera;
 
     [MenuItem("Tools/RollingCube/Rebuild Chapter 1/Level 1")]
     public static void BuildLevel1() => RebuildLevel(1, BuildLevel01);
@@ -85,45 +87,76 @@ public static class Chapter1SceneBuilder
         for (int z = -1; z <= 1; z++)
             AddTile(cells, levelRoot, x, z, 0f);
 
-        Player player = AddPlayer(-5, 0, 0f);
         AddGoal(0, 0, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        AttachLevelRuntime(1, -5, 0, 0f);
         Save(scene, 1);
     }
 
     private static void BuildLevel02()
     {
-        Scene scene = CreateScene(2, -4, 2, -1, 1);
+        Scene scene = CreateScene(2, -4, 2, -3, 0);
         HashSet<string> cells = new HashSet<string>();
 
-        for (int x = -4; x <= -2; x++) AddTile(cells, levelRoot, x, 0, 0.5f);
-        for (int x = -1; x <= 2; x++)
-        for (int z = -1; z <= 1; z++)
-            AddTile(cells, levelRoot, x, z, 0f);
+        AddTile(cells, levelRoot, 0, 0, 1f);
+        AddTile(cells, levelRoot, 1, 0, 1f);
+        AddTile(cells, levelRoot, 2, 0, 1f);
+        AddTile(cells, levelRoot, 1, -1, 1f);
+        AddTile(cells, levelRoot, 2, -1, 1f);
 
-        Player player = AddPlayer(-4, 0, 0.5f);
-        AddGoal(1, 0, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        for (int x = -3; x <= -1; x++)
+            AddTile(cells, levelRoot, x, -1, 0.5f);
+        for (int x = -2; x <= 2; x++)
+            AddTile(cells, levelRoot, x, -2, 0.5f);
+
+        AddTile(cells, levelRoot, -4, -2, 0f);
+        AddTile(cells, levelRoot, -3, -2, 0f);
+        AddTile(cells, levelRoot, -3, -3, 0f);
+
+        AddGoal(-3, -3, 0f, levelRoot);
+        AttachLevelRuntime(2, 0, 0, 1f);
         Save(scene, 2);
     }
 
     private static void BuildLevel03()
     {
-        Scene scene = CreateScene(3, -4, 5, -1, 1);
+        Scene scene = CreateScene(3, -4, 6, -2, 2);
         HashSet<string> cells = new HashSet<string>();
 
-        AddRect(cells, levelRoot, -4, -1, -1, 1, 0f);
-        AddRect(cells, levelRoot, 2, 5, -1, 1, 0f);
+        AddTile(cells, levelRoot, -4, 1, 0f);
+        AddTile(cells, levelRoot, -3, 1, 0f);
+        AddTile(cells, levelRoot, -2, 1, 0f);
+        AddTile(cells, levelRoot, -2, 0, 0f);
+        AddTile(cells, levelRoot, -3, -1, 0f);
+        AddTile(cells, levelRoot, -2, -1, 0f);
+        AddTile(cells, levelRoot, -1, -1, 0f);
 
-        Elevator west = AddElevator("bridge_west", 0, 0, -1f, new Vector3(0f, 1f, 0f),
-            false, false, false, 2f, 3f, levelRoot);
-        Elevator east = AddElevator("bridge_east", 1, 0, -1f, new Vector3(0f, 1f, 0f),
-            false, false, false, 2f, 3f, levelRoot);
-        AddSwitch("bridge_switch", -2, 1, 0f, 1f, new[] { west, east }, levelRoot);
+        AddTile(cells, levelRoot, 2, -1, 0f);
+        AddTile(cells, levelRoot, 3, -1, 0f);
+        AddTile(cells, levelRoot, 2, 0, 0f);
+        AddTile(cells, levelRoot, 2, 1, 0f);
+        AddTile(cells, levelRoot, 3, 1, 0f);
 
-        Player player = AddPlayer(-4, 0, 0f);
-        AddGoal(3, 0, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        for (int x = 3; x <= 6; x++)
+        {
+            AddTile(cells, levelRoot, x, 0, -0.5f);
+            AddTile(cells, levelRoot, x, -2, -0.5f);
+        }
+        AddTile(cells, levelRoot, 6, -1, -0.5f);
+
+        for (int x = -4; x <= -2; x++)
+            AddObstacle($"decorative_cliff_west_{x:+00;-00}", x, 2, -0.5f, levelRoot);
+        for (int x = 2; x <= 4; x++)
+            AddObstacle($"decorative_cliff_east_{x:+00;-00}", x, 2, -0.5f, levelRoot);
+
+        Elevator west = AddElevator("bridge_west", 0, -1, -0.5f, new Vector3(0f, 0.5f, 0f),
+            false, false, false, 1.25f, 3f, levelRoot);
+        Elevator east = AddElevator("bridge_east", 1, -1, -0.5f, new Vector3(0f, 0.5f, 0f),
+            false, false, false, 1.25f, 3f, levelRoot);
+        AddSwitch("bridge_switch", -3, -1, 0f, 1f, new[] { west, east }, levelRoot,
+            new[] { 0f, 0.5f });
+
+        AddGoal(6, 0, -0.5f, levelRoot);
+        AttachLevelRuntime(3, -4, 1, 0f);
         Save(scene, 3);
     }
 
@@ -137,9 +170,8 @@ public static class Chapter1SceneBuilder
         AddElevator("carrier_platform", 0, 0, 0f, new Vector3(2f, 0f, 0f),
             true, false, false, 2f, 3f, levelRoot);
 
-        Player player = AddPlayer(-4, 0, 0f);
         AddGoal(4, 0, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        AttachLevelRuntime(4, -4, 0, 0f);
         Save(scene, 4);
     }
 
@@ -157,9 +189,8 @@ public static class Chapter1SceneBuilder
             false, false, 2f, levelRoot);
         AddSwitch("prerequisite_switch", -3, 1, 0f, 1f, new[] { gate }, levelRoot);
 
-        Player player = AddPlayer(-5, 0, 0f);
         AddGoal(7, 0, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        AttachLevelRuntime(5, -5, 0, 0f);
         Save(scene, 5);
     }
 
@@ -174,11 +205,10 @@ public static class Chapter1SceneBuilder
         AddObstacle("hill_lower", 4, 0, 0f, levelRoot);
         AddObstacle("hill_upper", 6, 1, 0f, levelRoot);
 
-        Player player = AddPlayer(0, 0, 0f);
         AddBox("lower_box", 2, 0, 0f, levelRoot);
         AddBox("upper_box", 4, 1, 0f, levelRoot);
         AddGoal(6, 3, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        AttachLevelRuntime(6, 0, 0, 0f);
         Save(scene, 6);
     }
 
@@ -193,11 +223,10 @@ public static class Chapter1SceneBuilder
         CreateTerrainInstance("ditch_horizontal_floor", 3, 0, -1f, levelRoot);
         CreateTerrainInstance("ditch_vertical_floor", 4, 3, -1f, levelRoot);
 
-        Player player = AddPlayer(0, 0, 0f);
         AddBox("horizontal_box", 2, 0, 0f, levelRoot);
         AddBox("vertical_box", 4, 2, 0f, levelRoot);
         AddGoal(6, 5, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        AttachLevelRuntime(7, 0, 0, 0f);
         Save(scene, 7);
     }
 
@@ -222,10 +251,9 @@ public static class Chapter1SceneBuilder
             false, true, false, 1f, 3f, levelRoot);
         AddSwitch("bridge_pressure_plate", 1, 1, 0f, 1f, new[] { bridge }, levelRoot);
 
-        Player player = AddPlayer(0, 3, 0f);
         AddBox("holding_box", 1, 2, 0f, levelRoot);
         AddGoal(7, 1, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        AttachLevelRuntime(8, 0, 3, 0f);
         Save(scene, 8);
     }
 
@@ -244,10 +272,9 @@ public static class Chapter1SceneBuilder
             false, false, false, 1f, 3f, levelRoot);
         AddSwitch("hidden_switch", 4, 0, -1f, 0.4f, new[] { bridge }, levelRoot);
 
-        Player player = AddPlayer(0, 0, 0f);
         AddBox("key_box", 2, 0, 0f, levelRoot);
         AddGoal(10, 2, 0f, levelRoot);
-        AttachLevelEntryAnimator(player);
+        AttachLevelRuntime(9, 0, 0, 0f);
         Save(scene, 9);
     }
 
@@ -257,6 +284,10 @@ public static class Chapter1SceneBuilder
         RemoveTemplateGameplayObjects(scene);
         PrepareLevelRoot(scene);
         SetupEnvironment(level, minX, maxX, minZ, maxZ);
+        PrepareStandaloneRig(scene);
+
+        GameObject metadata = new GameObject($"Chapter1_Level{level:00}_RCMap");
+        metadata.transform.position = Vector3.zero;
         return scene;
     }
 
@@ -302,16 +333,25 @@ public static class Chapter1SceneBuilder
         float width = maxX - minX + 1f;
         float depth = maxZ - minZ + 1f;
 
-        Camera camera = Camera.main;
-        if (camera == null)
+        sceneCamera = Camera.main;
+        if (sceneCamera == null)
             throw new System.InvalidOperationException(
                 $"{TemplateScenePath} must contain a camera tagged MainCamera.");
 
-        camera.orthographicSize = Mathf.Max(4.5f, (depth + 4f) * 0.7f, (width + 4f) / 3.2f);
-        camera.transform.position = new Vector3(centerX - 3.73f, 4.23f, centerZ - 7.05f);
+        sceneCamera.orthographicSize = Mathf.Max(4.5f, (depth + 4f) * 0.7f, (width + 4f) / 3.2f);
+        sceneCamera.transform.position = new Vector3(centerX - 3.73f, 4.23f, centerZ - 7.05f);
+    }
 
-        GameObject metadata = new GameObject($"Chapter1_Level{level:00}_RCMap");
-        metadata.transform.position = Vector3.zero;
+    private static void PrepareStandaloneRig(Scene scene)
+    {
+        standaloneRig = new GameObject("StandaloneRig");
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            if (root == standaloneRig || root.transform == levelRoot) continue;
+            root.transform.SetParent(standaloneRig.transform, true);
+        }
+
+        standaloneRig.SetActive(false);
     }
 
     private static readonly string[] DecorationPrefabPaths =
@@ -329,6 +369,7 @@ public static class Chapter1SceneBuilder
         {
             string prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(root);
             if (prefabPath == PlayerPrefabPath ||
+                prefabPath == GoalPrefabPath ||
                 prefabPath == BoxPrefabPath ||
                 System.Array.IndexOf(DecorationPrefabPaths, prefabPath) >= 0)
             {
@@ -345,6 +386,8 @@ public static class Chapter1SceneBuilder
             terrainSeed = null;
         }
         levelRoot = null;
+        standaloneRig = null;
+        sceneCamera = null;
 
         EditorSceneManager.MarkSceneDirty(scene);
         string path = $"{SceneFolder}/Chapter1_Scene{level}.unity";
@@ -395,24 +438,37 @@ public static class Chapter1SceneBuilder
         obstacle.transform.rotation = Quaternion.identity;
     }
 
-    private static Player AddPlayer(int x, int z, float surfaceY)
+    private static void AttachLevelRuntime(int level, int spawnX, int spawnZ, float surfaceY)
     {
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-        GameObject playerObject = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-        playerObject.name = "Player";
-        playerObject.transform.position = new Vector3(x, surfaceY + 0.5f, z);
-        playerObject.transform.rotation = Quaternion.identity;
-        return playerObject.GetComponent<Player>();
-    }
+        GameObject spawnObject = new GameObject("LevelSpawn");
+        spawnObject.transform.SetParent(levelRoot);
+        spawnObject.transform.position = new Vector3(spawnX, surfaceY + 0.5f, spawnZ);
+        spawnObject.transform.rotation = Quaternion.identity;
+        spawnObject.AddComponent<LevelTransitionExclude>();
 
-    // Drives the level's ripple entry animation: LevelRoot's children (terrain, obstacles,
-    // mechanisms, boxes, the goal) start scaled to zero and pop in outward from the player.
-    private static void AttachLevelEntryAnimator(Player player)
-    {
         LevelEntryAnimator animator = levelRoot.gameObject.AddComponent<LevelEntryAnimator>();
-        SerializedObject serialized = new SerializedObject(animator);
-        serialized.FindProperty("player").objectReferenceValue = player;
-        serialized.ApplyModifiedPropertiesWithoutUndo();
+        LevelContext context = levelRoot.gameObject.AddComponent<LevelContext>();
+
+        GameObject playerPrefabObject = RequirePrefab(PlayerPrefabPath);
+        Player playerPrefab = playerPrefabObject.GetComponent<Player>();
+
+        Vector3 gameplayOffset = sceneCamera.transform.position - spawnObject.transform.position;
+        Vector3 previewOffset = gameplayOffset - sceneCamera.transform.right * 3f;
+
+        context.Configure(
+            $"Chapter1_Scene{level}",
+            1,
+            level,
+            levelRoot,
+            spawnObject.transform,
+            animator,
+            playerPrefab,
+            standaloneRig,
+            gameplayOffset,
+            previewOffset,
+            sceneCamera.transform.eulerAngles,
+            sceneCamera.orthographicSize,
+            sceneCamera.orthographicSize + 0.5f);
     }
 
     private static SceneSwitcher AddGoal(int x, int z, float surfaceY, Transform parent)
@@ -485,8 +541,12 @@ public static class Chapter1SceneBuilder
     }
 
     private static ElevatorSwitch AddSwitch(string name, int x, int z, float surfaceY,
-        float holdDuration, Elevator[] targets, Transform parent)
+        float holdDuration, Elevator[] targets, Transform parent, float[] targetDelays = null)
     {
+        if (targetDelays != null && targetDelays.Length != targets.Length)
+            throw new System.ArgumentException(
+                "Elevator switch target delays must match the target count.", nameof(targetDelays));
+
         GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
         plate.name = name;
         plate.transform.SetParent(parent);
@@ -502,7 +562,8 @@ public static class Chapter1SceneBuilder
         {
             SerializedProperty target = targetProperty.GetArrayElementAtIndex(i);
             target.FindPropertyRelative("elevator").objectReferenceValue = targets[i];
-            target.FindPropertyRelative("delay").floatValue = 0f;
+            target.FindPropertyRelative("delay").floatValue =
+                targetDelays == null ? 0f : targetDelays[i];
         }
         serialized.FindProperty("holdDuration").floatValue = holdDuration;
         serialized.FindProperty("requireRuneDown").boolValue = false;

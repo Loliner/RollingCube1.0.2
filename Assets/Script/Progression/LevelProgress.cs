@@ -26,9 +26,11 @@ public class LevelProgress : MonoBehaviour
     private class SaveData
     {
         public List<LevelEntry> levels = new List<LevelEntry>();
+        public string lastSelectedLevelId;
     }
 
     private readonly Dictionary<string, bool> completed = new Dictionary<string, bool>();
+    private string lastSelectedLevelId;
     private string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
 
     [RuntimeInitializeOnLoadMethod]
@@ -52,6 +54,26 @@ public class LevelProgress : MonoBehaviour
         return completed.TryGetValue(LevelId(chapter, scene - 1), out bool done) && done;
     }
 
+    /// <summary>Returns whether a level has been completed.</summary>
+    public bool IsCompleted(int chapter, int scene)
+    {
+        return completed.TryGetValue(LevelId(chapter, scene), out bool done) && done;
+    }
+
+    /// <summary>Returns the last level selected from the start screen.</summary>
+    public string GetLastSelectedLevelId()
+    {
+        return lastSelectedLevelId;
+    }
+
+    /// <summary>Persists the last level selected from the start screen.</summary>
+    public void SetLastSelectedLevelId(string levelId)
+    {
+        if (lastSelectedLevelId == levelId) return;
+        lastSelectedLevelId = levelId;
+        Save();
+    }
+
     // Called by SceneSwitcher when the player reaches the end-of-level trigger.
     public void RegisterCompletion(int chapter, int scene)
     {
@@ -71,6 +93,7 @@ public class LevelProgress : MonoBehaviour
         {
             SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath));
             if (data?.levels == null) return;
+            lastSelectedLevelId = data.lastSelectedLevelId;
             foreach (LevelEntry entry in data.levels)
                 completed[entry.levelId] = entry.completed;
         }
@@ -84,6 +107,7 @@ public class LevelProgress : MonoBehaviour
     private void Save()
     {
         SaveData data = new SaveData();
+        data.lastSelectedLevelId = lastSelectedLevelId;
         foreach (KeyValuePair<string, bool> pair in completed)
             data.levels.Add(new LevelEntry { levelId = pair.Key, completed = pair.Value });
 
